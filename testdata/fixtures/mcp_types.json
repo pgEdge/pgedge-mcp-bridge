@@ -1,0 +1,124 @@
+{
+  "tools": [
+    {
+      "description": "Simple tool",
+      "json": {"name":"echo","description":"Echo back the input","inputSchema":{"type":"object","properties":{"message":{"type":"string","description":"Message to echo"}},"required":["message"]}}
+    },
+    {
+      "description": "Tool with annotations",
+      "json": {"name":"read_file","description":"Read a file from disk","inputSchema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]},"annotations":{"title":"File Reader","readOnlyHint":true,"destructiveHint":false,"idempotentHint":true}}
+    },
+    {
+      "description": "Tool with complex schema",
+      "json": {"name":"query_database","description":"Query a database","inputSchema":{"type":"object","properties":{"query":{"type":"string"},"parameters":{"type":"array","items":{"type":"string"}},"options":{"type":"object","properties":{"timeout":{"type":"integer","default":30},"limit":{"type":"integer"}}}},"required":["query"]}}
+    },
+    {
+      "description": "Destructive tool",
+      "json": {"name":"delete_file","description":"Delete a file","inputSchema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]},"annotations":{"destructiveHint":true,"openWorldHint":true}}
+    }
+  ],
+  "resources": [
+    {
+      "description": "File resource",
+      "json": {"uri":"file:///home/user/document.txt","name":"document.txt","description":"A text document","mimeType":"text/plain"}
+    },
+    {
+      "description": "Database resource",
+      "json": {"uri":"db://postgres/users","name":"Users Table","description":"The users database table","mimeType":"application/json"}
+    },
+    {
+      "description": "Resource with annotations",
+      "json": {"uri":"file:///etc/config.yaml","name":"config.yaml","annotations":{"audience":["admin"],"priority":0.8}}
+    }
+  ],
+  "prompts": [
+    {
+      "description": "Simple prompt",
+      "json": {"name":"greeting","description":"A friendly greeting"}
+    },
+    {
+      "description": "Prompt with arguments",
+      "json": {"name":"code_review","description":"Review code for issues","arguments":[{"name":"code","description":"The code to review","required":true},{"name":"language","description":"Programming language","required":false}]}
+    },
+    {
+      "description": "Complex prompt",
+      "json": {"name":"summarize","description":"Summarize content","arguments":[{"name":"content","description":"Content to summarize","required":true},{"name":"max_length","description":"Maximum length of summary"},{"name":"style","description":"Summary style (brief, detailed)"}]}
+    }
+  ],
+  "capabilities": {
+    "client": [
+      {
+        "description": "Empty client capabilities",
+        "json": {}
+      },
+      {
+        "description": "Client with roots capability",
+        "json": {"roots":{"listChanged":true}}
+      },
+      {
+        "description": "Client with sampling capability",
+        "json": {"sampling":{}}
+      },
+      {
+        "description": "Client with experimental capabilities",
+        "json": {"experimental":{"customFeature":true,"anotherFeature":{"nested":"value"}}}
+      },
+      {
+        "description": "Full client capabilities",
+        "json": {"roots":{"listChanged":true},"sampling":{},"experimental":{"beta":true}}
+      }
+    ],
+    "server": [
+      {
+        "description": "Empty server capabilities",
+        "json": {}
+      },
+      {
+        "description": "Server with tools capability",
+        "json": {"tools":{"listChanged":true}}
+      },
+      {
+        "description": "Server with resources capability",
+        "json": {"resources":{"subscribe":true,"listChanged":true}}
+      },
+      {
+        "description": "Server with prompts capability",
+        "json": {"prompts":{"listChanged":true}}
+      },
+      {
+        "description": "Server with logging capability",
+        "json": {"logging":{}}
+      },
+      {
+        "description": "Full server capabilities",
+        "json": {"tools":{"listChanged":true},"resources":{"subscribe":true,"listChanged":true},"prompts":{"listChanged":true},"logging":{},"experimental":{"streaming":true}}
+      }
+    ]
+  },
+  "initialize": {
+    "params": [
+      {
+        "description": "Minimal initialize params",
+        "json": {"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}
+      },
+      {
+        "description": "Initialize with full capabilities",
+        "json": {"protocolVersion":"2025-06-18","capabilities":{"roots":{"listChanged":true},"sampling":{}},"clientInfo":{"name":"mcp-client","version":"2.0.0"}}
+      }
+    ],
+    "results": [
+      {
+        "description": "Minimal initialize result",
+        "json": {"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"test-server","version":"1.0.0"}}
+      },
+      {
+        "description": "Initialize result with instructions",
+        "json": {"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true}},"serverInfo":{"name":"mcp-server","version":"2.0.0"},"instructions":"Use tools responsibly. Always validate input."}
+      },
+      {
+        "description": "Full initialize result",
+        "json": {"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true},"resources":{"subscribe":true,"listChanged":true},"prompts":{"listChanged":true},"logging":{}},"serverInfo":{"name":"full-server","version":"3.0.0"},"instructions":"Complete MCP server implementation"}
+      }
+    ]
+  }
+}

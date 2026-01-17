@@ -1,0 +1,16 @@
+mode: client
+client:
+  url: https://mcp.example.com:8443/mcp
+  timeout: 60s
+  max_idle_conns: 20
+  idle_conn_timeout: 120s
+  retry:
+    enabled: true
+    max_retries: 5
+    initial_delay: 200ms
+    max_delay: 10s
+    multiplier: 2.5
+log:
+  level: info
+  format: text
+  output: stderr

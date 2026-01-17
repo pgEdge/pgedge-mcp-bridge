@@ -1,0 +1,91 @@
+{
+  "text_content": [
+    {
+      "description": "Simple text content",
+      "json": {"type":"text","text":"Hello, world!"}
+    },
+    {
+      "description": "Text content with annotations",
+      "json": {"type":"text","text":"Important message","annotations":{"audience":["user"],"priority":0.9}}
+    },
+    {
+      "description": "Multiline text content",
+      "json": {"type":"text","text":"Line 1\nLine 2\nLine 3"}
+    },
+    {
+      "description": "Empty text content",
+      "json": {"type":"text","text":""}
+    },
+    {
+      "description": "Text with special characters",
+      "json": {"type":"text","text":"Special chars: <>&\"'\t\n\r"}
+    },
+    {
+      "description": "Text with unicode",
+      "json": {"type":"text","text":"Unicode test"}
+    }
+  ],
+  "image_content": [
+    {
+      "description": "PNG image content",
+      "json": {"type":"image","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==","mimeType":"image/png"}
+    },
+    {
+      "description": "JPEG image content",
+      "json": {"type":"image","data":"/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAB//2Q==","mimeType":"image/jpeg"}
+    },
+    {
+      "description": "Image with annotations",
+      "json": {"type":"image","data":"base64data","mimeType":"image/png","annotations":{"audience":["user","assistant"],"priority":1.0}}
+    }
+  ],
+  "resource_content": [
+    {
+      "description": "Text resource content",
+      "json": {"type":"resource","resource":{"uri":"file:///path/to/file.txt","mimeType":"text/plain","text":"File content here"}}
+    },
+    {
+      "description": "Binary resource content",
+      "json": {"type":"resource","resource":{"uri":"file:///path/to/image.png","mimeType":"image/png","blob":"base64encodedblob"}}
+    },
+    {
+      "description": "Resource with annotations",
+      "json": {"type":"resource","resource":{"uri":"db://table/data","text":"Database content"},"annotations":{"priority":0.5}}
+    },
+    {
+      "description": "Minimal resource",
+      "json": {"type":"resource","resource":{"uri":"custom://resource"}}
+    }
+  ],
+  "embedded_resources": [
+    {
+      "description": "Text embedded resource",
+      "json": {"uri":"file:///home/user/document.txt","mimeType":"text/plain","text":"Document content"}
+    },
+    {
+      "description": "Binary embedded resource",
+      "json": {"uri":"file:///home/user/image.png","mimeType":"image/png","blob":"iVBORw0KGgo..."}
+    },
+    {
+      "description": "JSON embedded resource",
+      "json": {"uri":"file:///home/user/config.json","mimeType":"application/json","text":"{\"key\":\"value\"}"}
+    }
+  ],
+  "invalid_content": [
+    {
+      "description": "Missing type",
+      "json": {"text":"Hello"},
+      "error": "missing type"
+    },
+    {
+      "description": "Unknown type",
+      "json": {"type":"unknown","data":"something"},
+      "error": "unknown content type"
+    },
+    {
+      "description": "Resource content missing resource",
+      "json": {"type":"resource"},
+      "error": "resource content missing resource field"
+    }
+  ]
+}

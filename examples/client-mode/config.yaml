@@ -1,0 +1,99 @@
+# MCP HTTP Bridge - Client Mode Configuration
+# This configuration connects to a remote MCP HTTP server and exposes it via stdio.
+#
+# In client mode, the bridge:
+# 1. Connects to a remote MCP HTTP/SSE server
+# 2. Exposes the MCP protocol over stdio
+# 3. Allows MCP clients to use remote servers as if they were local
+
+# Mode of operation: "server" or "client"
+mode: client
+
+# Client configuration (required for client mode)
+client:
+  # URL of the remote MCP HTTP server
+  # Should include the base path configured on the server
+  url: "https://example.com/mcp"
+
+  # HTTP timeout for requests (Go duration format)
+  timeout: 30s
+
+  # Connection timeout for establishing connections
+  connect_timeout: 10s
+
+  # Keep-alive interval for the SSE connection
+  keepalive_interval: 30s
+
+  # Maximum response size (prevents memory exhaustion)
+  max_response_size: 10485760  # 10 MB
+
+# Authentication configuration
+auth:
+  # Authentication type: "none", "bearer", or "oauth"
+  type: bearer
+
+  # Bearer token configuration
+  bearer:
+    # Token to use for authentication
+    # Use environment variable substitution for security:
+    # The ${VAR} syntax reads from environment variables
+    token: "${MCP_AUTH_TOKEN}"
+
+# Retry configuration for resilient connections
+retry:
+  # Enable automatic retry on connection failures
+  enabled: true
+
+  # Maximum number of retry attempts (0 for infinite)
+  max_attempts: 5
+
+  # Initial delay between retries
+  initial_delay: 1s
+
+  # Maximum delay between retries (with exponential backoff)
+  max_delay: 30s
+
+  # Multiplier for exponential backoff
+  multiplier: 2.0
+
+  # Add random jitter to prevent thundering herd
+  jitter: true
+
+# Session configuration
+session:
+  # Enable session support for stateful connections
+  enabled: true
+
+  # Session ID to use (optional)
+  # If not specified, a new session ID is generated
+  # session_id: "my-persistent-session"
+
+# TLS configuration for secure connections
+tls:
+  # Skip TLS certificate verification (NOT recommended for production)
+  insecure_skip_verify: false
+
+  # Path to custom CA certificate file
+  # Use this if the server uses a private CA
+  # ca_cert: "/path/to/ca.crt"
+
+  # Client certificate for mTLS authentication
+  # cert: "/path/to/client.crt"
+  # key: "/path/to/client.key"
+
+# Logging configuration
+logging:
+  # Log level: "debug", "info", "warn", "error"
+  # In client mode, logs are written to stderr to not interfere with stdio
+  level: info
+
+  # Log format: "json" or "text"
+  format: text
+
+# Stdio configuration
+stdio:
+  # Buffer size for stdin/stdout (bytes)
+  buffer_size: 65536
+
+  # Read timeout for stdin (0 for no timeout)
+  read_timeout: 0s

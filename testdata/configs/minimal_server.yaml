@@ -1,0 +1,4 @@
+mode: server
+server:
+  mcp_server:
+    command: /usr/bin/mcp

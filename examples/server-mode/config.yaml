@@ -1,0 +1,135 @@
+# MCP HTTP Bridge - Server Mode Configuration
+# This configuration exposes an MCP stdio server over HTTP/SSE.
+#
+# In server mode, the bridge:
+# 1. Starts the specified MCP server as a subprocess
+# 2. Exposes HTTP endpoints for clients to connect
+# 3. Manages sessions and message routing
+
+# Mode of operation: "server" or "client"
+mode: server
+
+# Server configuration (required for server mode)
+server:
+  # Address to listen on (host:port)
+  # Use ":8080" to listen on all interfaces
+  # Use "127.0.0.1:8080" to listen only on localhost
+  listen: ":8080"
+
+  # Base path for all HTTP endpoints
+  # Endpoints will be:
+  #   - POST {base_path}/message - Send JSON-RPC messages
+  #   - GET  {base_path}/sse     - Server-Sent Events stream
+  base_path: "/mcp"
+
+  # Read timeout for HTTP requests (Go duration format)
+  read_timeout: 30s
+
+  # Write timeout for HTTP responses (Go duration format)
+  write_timeout: 30s
+
+  # Idle timeout for keep-alive connections (Go duration format)
+  idle_timeout: 120s
+
+# Authentication configuration
+auth:
+  # Authentication type: "none", "bearer", or "oauth"
+  type: bearer
+
+  # Bearer token configuration (used when type is "bearer")
+  bearer:
+    # List of valid tokens that clients can use
+    # In production, use strong, randomly generated tokens
+    tokens:
+      - "example-token-12345"
+      - "example-token-67890"
+
+# Session management configuration
+session:
+  # Enable session support for stateful connections
+  # When enabled, clients can maintain state across requests
+  enabled: true
+
+  # Session timeout - sessions expire after this duration of inactivity
+  timeout: 30m
+
+  # Maximum number of concurrent sessions
+  # Set to 0 for unlimited (not recommended in production)
+  max_sessions: 100
+
+# MCP server configuration (the stdio server to wrap)
+mcp:
+  # Command to execute the MCP server
+  # This is the program that implements the MCP protocol over stdio
+  command: "python"
+
+  # Arguments to pass to the command
+  args:
+    - "-m"
+    - "mcp_server"
+    - "--config"
+    - "/etc/mcp/server.json"
+
+  # Working directory for the MCP server process
+  # Optional: defaults to current directory if not specified
+  working_dir: "/opt/mcp-server"
+
+  # Environment variables to set for the MCP server
+  # These are merged with the bridge's environment
+  env:
+    MCP_LOG_LEVEL: "info"
+    PYTHONUNBUFFERED: "1"
+
+  # Startup timeout - how long to wait for the server to be ready
+  startup_timeout: 10s
+
+  # Shutdown timeout - how long to wait for graceful shutdown
+  shutdown_timeout: 5s
+
+# CORS configuration for browser-based clients
+cors:
+  # Enable CORS support
+  enabled: true
+
+  # Allowed origins (use ["*"] for any origin - not recommended for production)
+  allowed_origins:
+    - "https://example.com"
+    - "https://app.example.com"
+
+  # Allowed HTTP methods
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "OPTIONS"
+
+  # Allowed headers
+  allowed_headers:
+    - "Authorization"
+    - "Content-Type"
+    - "X-Session-ID"
+
+  # Headers exposed to the client
+  exposed_headers:
+    - "X-Session-ID"
+
+  # Allow credentials (cookies, authorization headers)
+  allow_credentials: true
+
+  # Max age for preflight cache (in seconds)
+  max_age: 3600
+
+# Logging configuration
+logging:
+  # Log level: "debug", "info", "warn", "error"
+  level: info
+
+  # Log format: "json" or "text"
+  format: json
+
+# Health check endpoint configuration
+health:
+  # Enable health check endpoint at /health
+  enabled: true
+
+  # Path for the health endpoint
+  path: "/health"

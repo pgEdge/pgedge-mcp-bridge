@@ -1,0 +1,76 @@
+{
+  "valid_requests": [
+    {
+      "description": "Simple request with number ID",
+      "json": {"jsonrpc":"2.0","id":1,"method":"test/method"}
+    },
+    {
+      "description": "Request with string ID",
+      "json": {"jsonrpc":"2.0","id":"request-abc-123","method":"test/method"}
+    },
+    {
+      "description": "Request with params object",
+      "json": {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my-tool","arguments":{"key":"value"}}}
+    },
+    {
+      "description": "Initialize request",
+      "json": {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
+    },
+    {
+      "description": "Tools list request",
+      "json": {"jsonrpc":"2.0","id":2,"method":"tools/list"}
+    },
+    {
+      "description": "Resources read request",
+      "json": {"jsonrpc":"2.0","id":3,"method":"resources/read","params":{"uri":"file:///path/to/file.txt"}}
+    },
+    {
+      "description": "Prompts get request",
+      "json": {"jsonrpc":"2.0","id":4,"method":"prompts/get","params":{"name":"greeting","arguments":{"name":"Alice"}}}
+    },
+    {
+      "description": "Request with large ID",
+      "json": {"jsonrpc":"2.0","id":9223372036854775807,"method":"test/method"}
+    },
+    {
+      "description": "Request with zero ID",
+      "json": {"jsonrpc":"2.0","id":0,"method":"test/method"}
+    },
+    {
+      "description": "Request with negative ID",
+      "json": {"jsonrpc":"2.0","id":-1,"method":"test/method"}
+    }
+  ],
+  "invalid_requests": [
+    {
+      "description": "Missing jsonrpc version",
+      "json": {"id":1,"method":"test/method"},
+      "error": "missing jsonrpc version"
+    },
+    {
+      "description": "Wrong jsonrpc version",
+      "json": {"jsonrpc":"1.0","id":1,"method":"test/method"},
+      "error": "invalid jsonrpc version"
+    },
+    {
+      "description": "Missing method",
+      "json": {"jsonrpc":"2.0","id":1},
+      "error": "method is required"
+    },
+    {
+      "description": "Missing ID (is notification)",
+      "json": {"jsonrpc":"2.0","method":"test/method"},
+      "error": "id is required for requests"
+    },
+    {
+      "description": "Null ID",
+      "json": {"jsonrpc":"2.0","id":null,"method":"test/method"},
+      "error": "id is required for requests"
+    },
+    {
+      "description": "Empty method",
+      "json": {"jsonrpc":"2.0","id":1,"method":""},
+      "error": "method is required"
+    }
+  ]
+}

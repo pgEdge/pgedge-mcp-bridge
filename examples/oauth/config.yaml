@@ -1,0 +1,147 @@
+# MCP HTTP Bridge - OAuth Authentication Configuration
+# This configuration demonstrates OAuth/OIDC authentication for the bridge.
+#
+# OAuth authentication supports:
+# - OpenID Connect Discovery for automatic configuration
+# - JWKS (JSON Web Key Set) for token validation
+# - Custom claim validation
+# - Token introspection for opaque tokens
+
+# Mode of operation
+mode: server
+
+# Server configuration
+server:
+  listen: ":8443"
+  base_path: "/mcp"
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+
+# Authentication configuration with OAuth
+auth:
+  # Authentication type: "oauth" for OAuth/OIDC
+  type: oauth
+
+  # OAuth configuration
+  oauth:
+    # OpenID Connect Discovery URL
+    # The bridge will fetch configuration from:
+    # {discovery_url}/.well-known/openid-configuration
+    # This automatically configures issuer, JWKS URI, and supported algorithms
+    discovery_url: "https://auth.example.com"
+
+    # Alternatively, configure manually without discovery:
+    # issuer: "https://auth.example.com"
+    # jwks_url: "https://auth.example.com/.well-known/jwks.json"
+
+    # Expected audience claim in the JWT
+    # This should match the audience your OAuth server issues tokens for
+    audience: "mcp-bridge-api"
+
+    # Required scopes for access
+    # Tokens must have all listed scopes to be valid
+    required_scopes:
+      - "mcp:read"
+      - "mcp:write"
+
+    # Claim mappings for extracting user information
+    # These claims are extracted from the JWT and made available to the MCP server
+    claims:
+      # Claim containing the user/subject identifier
+      subject_claim: "sub"
+
+      # Claim containing user's email (optional)
+      email_claim: "email"
+
+      # Claim containing user's roles/groups (optional)
+      roles_claim: "roles"
+
+    # Token validation options
+    validation:
+      # Allowed signing algorithms
+      # Restrict to specific algorithms for security
+      allowed_algorithms:
+        - "RS256"
+        - "RS384"
+        - "RS512"
+        - "ES256"
+        - "ES384"
+        - "ES512"
+
+      # Clock skew tolerance for token expiration checks
+      clock_skew: 30s
+
+      # Require tokens to have an expiration claim
+      require_expiration: true
+
+      # Maximum token age (even if not expired)
+      # Set to 0 to disable
+      max_token_age: 1h
+
+    # JWKS caching configuration
+    jwks:
+      # How often to refresh the JWKS
+      refresh_interval: 1h
+
+      # Timeout for JWKS fetch requests
+      fetch_timeout: 10s
+
+      # Number of keys to cache
+      cache_size: 10
+
+    # Token introspection (for opaque tokens)
+    # Enable this if your OAuth server issues opaque tokens instead of JWTs
+    introspection:
+      # Enable token introspection
+      enabled: false
+
+      # Introspection endpoint URL
+      # endpoint: "https://auth.example.com/oauth/introspect"
+
+      # Client credentials for introspection requests
+      # client_id: "mcp-bridge"
+      # client_secret: "${OAUTH_CLIENT_SECRET}"
+
+# Session management
+session:
+  enabled: true
+  timeout: 30m
+  max_sessions: 100
+
+# MCP server configuration
+mcp:
+  command: "node"
+  args:
+    - "/opt/mcp-server/index.js"
+  env:
+    NODE_ENV: "production"
+  startup_timeout: 10s
+  shutdown_timeout: 5s
+
+# CORS configuration
+# Important: Configure allowed origins carefully with OAuth
+cors:
+  enabled: true
+  allowed_origins:
+    - "https://app.example.com"
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "OPTIONS"
+  allowed_headers:
+    - "Authorization"
+    - "Content-Type"
+    - "X-Session-ID"
+  allow_credentials: true
+  max_age: 3600
+
+# Logging configuration
+logging:
+  level: info
+  format: json
+
+# Health check
+health:
+  enabled: true
+  path: "/health"

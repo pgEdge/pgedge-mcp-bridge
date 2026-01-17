@@ -1,0 +1,78 @@
+{
+  "success_responses": [
+    {
+      "description": "Simple success response",
+      "json": {"jsonrpc":"2.0","id":1,"result":{"status":"ok"}}
+    },
+    {
+      "description": "Response with string ID",
+      "json": {"jsonrpc":"2.0","id":"request-abc-123","result":{"status":"completed"}}
+    },
+    {
+      "description": "Response with null result",
+      "json": {"jsonrpc":"2.0","id":1,"result":null}
+    },
+    {
+      "description": "Initialize response",
+      "json": {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true},"resources":{"subscribe":true,"listChanged":true},"prompts":{"listChanged":true},"logging":{}},"serverInfo":{"name":"test-server","version":"1.0.0"}}}
+    },
+    {
+      "description": "Tools list response",
+      "json": {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"read_file","description":"Read a file","inputSchema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}},{"name":"write_file","description":"Write a file","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}}]}}
+    },
+    {
+      "description": "Tool call response with text content",
+      "json": {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"File content here"}]}}
+    },
+    {
+      "description": "Tool call response with image content",
+      "json": {"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"image","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==","mimeType":"image/png"}]}}
+    },
+    {
+      "description": "Resources list response",
+      "json": {"jsonrpc":"2.0","id":5,"result":{"resources":[{"uri":"file:///path/to/file.txt","name":"file.txt","mimeType":"text/plain"}]}}
+    },
+    {
+      "description": "Resources read response",
+      "json": {"jsonrpc":"2.0","id":6,"result":{"contents":[{"uri":"file:///path/to/file.txt","mimeType":"text/plain","text":"File contents here"}]}}
+    },
+    {
+      "description": "Prompts list response",
+      "json": {"jsonrpc":"2.0","id":7,"result":{"prompts":[{"name":"greeting","description":"A greeting prompt","arguments":[{"name":"name","description":"Name to greet","required":true}]}]}}
+    },
+    {
+      "description": "Response with pagination",
+      "json": {"jsonrpc":"2.0","id":8,"result":{"tools":[{"name":"tool1","inputSchema":{"type":"object"}}],"nextCursor":"cursor-abc-123"}}
+    }
+  ],
+  "error_responses": [
+    {
+      "description": "Parse error",
+      "json": {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"Parse error"}}
+    },
+    {
+      "description": "Invalid request",
+      "json": {"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid Request"}}
+    },
+    {
+      "description": "Method not found",
+      "json": {"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found","data":"unknown/method"}}
+    },
+    {
+      "description": "Invalid params",
+      "json": {"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params","data":{"missing":"required_field"}}}
+    },
+    {
+      "description": "Internal error",
+      "json": {"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"Internal error","data":"Unexpected server error"}}
+    },
+    {
+      "description": "Server error",
+      "json": {"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Server error","data":{"details":"Connection failed"}}}
+    },
+    {
+      "description": "Tool call error",
+      "json": {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Error: File not found"}],"isError":true}}
+    }
+  ]
+}

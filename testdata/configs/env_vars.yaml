@@ -1,0 +1,9 @@
+mode: server
+server:
+  listen: ${TEST_LISTEN_ADDR}
+  mcp_server:
+    command: $TEST_MCP_COMMAND
+    env:
+      API_KEY: ${TEST_API_KEY}
+log:
+  level: $TEST_LOG_LEVEL

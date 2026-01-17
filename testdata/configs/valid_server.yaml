@@ -1,0 +1,27 @@
+mode: server
+server:
+  listen: ":8443"
+  read_timeout: 45s
+  write_timeout: 90s
+  idle_timeout: 180s
+  mcp_server:
+    command: /usr/local/bin/mcp-server
+    args:
+      - --config
+      - /etc/mcp/config.json
+    env:
+      MCP_DEBUG: "true"
+    dir: /var/run/mcp
+    graceful_shutdown_timeout: 60s
+    restart_on_failure: true
+    max_restarts: 10
+    restart_delay: 10s
+  session:
+    enabled: true
+    timeout: 1h
+    max_sessions: 500
+    cleanup_interval: 10m
+log:
+  level: debug
+  format: json
+  output: stdout

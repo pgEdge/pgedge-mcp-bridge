@@ -1,0 +1,72 @@
+{
+  "valid_batches": [
+    {
+      "description": "Batch with single request",
+      "json": [
+        {"jsonrpc":"2.0","id":1,"method":"tools/list"}
+      ]
+    },
+    {
+      "description": "Batch with multiple requests",
+      "json": [
+        {"jsonrpc":"2.0","id":1,"method":"tools/list"},
+        {"jsonrpc":"2.0","id":2,"method":"resources/list"},
+        {"jsonrpc":"2.0","id":3,"method":"prompts/list"}
+      ]
+    },
+    {
+      "description": "Batch with mixed requests and notifications",
+      "json": [
+        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}},
+        {"jsonrpc":"2.0","method":"notifications/initialized"}
+      ]
+    },
+    {
+      "description": "Batch with different ID types",
+      "json": [
+        {"jsonrpc":"2.0","id":1,"method":"test1"},
+        {"jsonrpc":"2.0","id":"string-id","method":"test2"},
+        {"jsonrpc":"2.0","id":999,"method":"test3"}
+      ]
+    },
+    {
+      "description": "Empty batch",
+      "json": []
+    }
+  ],
+  "valid_batch_responses": [
+    {
+      "description": "Batch response with single result",
+      "json": [
+        {"jsonrpc":"2.0","id":1,"result":{"tools":[]}}
+      ]
+    },
+    {
+      "description": "Batch response with multiple results",
+      "json": [
+        {"jsonrpc":"2.0","id":1,"result":{"tools":[]}},
+        {"jsonrpc":"2.0","id":2,"result":{"resources":[]}},
+        {"jsonrpc":"2.0","id":3,"result":{"prompts":[]}}
+      ]
+    },
+    {
+      "description": "Batch response with mixed success and error",
+      "json": [
+        {"jsonrpc":"2.0","id":1,"result":{"status":"ok"}},
+        {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found"}}
+      ]
+    }
+  ],
+  "invalid_batches": [
+    {
+      "description": "Not an array",
+      "json": {"jsonrpc":"2.0","id":1,"method":"test"},
+      "error": "batch must be an array"
+    },
+    {
+      "description": "Invalid JSON in batch",
+      "raw": "[{invalid json}]",
+      "error": "invalid JSON"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "valid_notifications": [
+    {
+      "description": "Initialized notification",
+      "json": {"jsonrpc":"2.0","method":"notifications/initialized"}
+    },
+    {
+      "description": "Progress notification",
+      "json": {"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":"task-123","progress":50,"total":100,"message":"Processing..."}}
+    },
+    {
+      "description": "Progress notification with string token",
+      "json": {"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":"download-abc","progress":0.75}}
+    },
+    {
+      "description": "Progress notification with number token",
+      "json": {"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":42,"progress":25,"total":100}}
+    },
+    {
+      "description": "Cancelled notification",
+      "json": {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1,"reason":"User cancelled operation"}}
+    },
+    {
+      "description": "Cancelled notification with string request ID",
+      "json": {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"req-abc"}}
+    },
+    {
+      "description": "Resources updated notification",
+      "json": {"jsonrpc":"2.0","method":"notifications/resources/updated","params":{"uri":"file:///path/to/file.txt"}}
+    },
+    {
+      "description": "Resources list changed notification",
+      "json": {"jsonrpc":"2.0","method":"notifications/resources/list_changed"}
+    },
+    {
+      "description": "Tools list changed notification",
+      "json": {"jsonrpc":"2.0","method":"notifications/tools/list_changed"}
+    },
+    {
+      "description": "Prompts list changed notification",
+      "json": {"jsonrpc":"2.0","method":"notifications/prompts/list_changed"}
+    },
+    {
+      "description": "Logging message notification - info level",
+      "json": {"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info","logger":"mcp-server","data":"Server started successfully"}}
+    },
+    {
+      "description": "Logging message notification - error level",
+      "json": {"jsonrpc":"2.0","method":"notifications/message","params":{"level":"error","logger":"tool-handler","data":{"error":"Connection timeout","retries":3}}}
+    },
+    {
+      "description": "Logging message notification - debug level",
+      "json": {"jsonrpc":"2.0","method":"notifications/message","params":{"level":"debug","data":"Debug information"}}
+    }
+  ],
+  "invalid_notifications": [
+    {
+      "description": "Missing jsonrpc version",
+      "json": {"method":"notifications/initialized"},
+      "error": "missing jsonrpc version"
+    },
+    {
+      "description": "Wrong jsonrpc version",
+      "json": {"jsonrpc":"1.0","method":"notifications/initialized"},
+      "error": "invalid jsonrpc version"
+    },
+    {
+      "description": "Missing method",
+      "json": {"jsonrpc":"2.0"},
+      "error": "method is required"
+    },
+    {
+      "description": "Empty method",
+      "json": {"jsonrpc":"2.0","method":""},
+      "error": "method is required"
+    },
+    {
+      "description": "Has ID (is request, not notification)",
+      "json": {"jsonrpc":"2.0","id":1,"method":"notifications/initialized"},
+      "error": "notification should not have id"
+    }
+  ]
+}
