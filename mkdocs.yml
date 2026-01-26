@@ -74,3 +74,4 @@ nav:
   - Reference:
       - CLI Reference: reference/cli.md
       - API Reference: reference/api.md
+  - Licence: licence.md
