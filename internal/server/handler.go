@@ -526,7 +526,7 @@ func (h *MCPHandler) writeError(w http.ResponseWriter, status int, message strin
 func (h *MCPHandler) writeJSONRPCError(w http.ResponseWriter, id protocol.RequestID, err *protocol.Error) {
 	resp := protocol.NewErrorResponse(id, err)
 	w.Header().Set("Content-Type", ContentTypeJSON)
-	w.WriteHeader(http.StatusOK) // JSON-RPC errors use 200 OK
+	w.WriteHeader(http.StatusOK)        // JSON-RPC errors use 200 OK
 	_ = json.NewEncoder(w).Encode(resp) // Best effort
 }
 
