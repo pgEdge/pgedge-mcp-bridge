@@ -151,6 +151,11 @@ func (c *Client) Run(ctx context.Context) error {
 		case msg, ok := <-messages:
 			if !ok {
 				c.logger.Info("stdin closed, shutting down")
+				// If context was cancelled, return the context error
+				// This handles the race between ctx.Done() and channel close
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				return nil
 			}
 
@@ -300,6 +305,11 @@ func (c *Client) RunWithSSE(ctx context.Context) error {
 		case msg, ok := <-messages:
 			if !ok {
 				c.logger.Info("stdin closed, shutting down")
+				// If context was cancelled, return the context error
+				// This handles the race between ctx.Done() and channel close
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				return nil
 			}
 
