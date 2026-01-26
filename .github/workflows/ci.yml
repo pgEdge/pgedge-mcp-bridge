@@ -1,0 +1,92 @@
+name: CI
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main, develop]
+
+jobs:
+    build-and-test:
+        name: Build and Test
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: "1.24"
+                  cache: true
+
+            - name: Verify dependencies
+              run: go mod verify
+
+            - name: Download dependencies
+              run: go mod download
+
+            - name: Check formatting
+              run: |
+                  unformatted=$(gofmt -l .)
+                  if [ -n "$unformatted" ]; then
+                    echo "The following files are not formatted:"
+                    echo "$unformatted"
+                    exit 1
+                  fi
+
+            - name: Run go vet
+              run: go vet ./...
+
+            - name: Install golangci-lint
+              run: |
+                  go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+                  echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+            - name: Run golangci-lint
+              run: golangci-lint run ./...
+
+            - name: Build
+              run: |
+                  mkdir -p bin
+                  go build -v -o bin/mcp-bridge ./cmd/mcp-bridge
+
+            - name: Verify binary
+              run: |
+                  ls -lh bin/mcp-bridge
+                  file bin/mcp-bridge
+
+            - name: Run tests
+              run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+            - name: Generate coverage report
+              run: |
+                  go tool cover -html=coverage.out -o coverage.html
+                  go tool cover -func=coverage.out
+
+            - name: Check coverage threshold
+              run: |
+                  coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+                  echo "Total coverage: ${coverage}%"
+                  threshold=80
+                  if [ $(echo "$coverage < $threshold" | bc -l) -eq 1 ]; then
+                    echo "Coverage ${coverage}% is below threshold of ${threshold}%"
+                    exit 1
+                  fi
+
+            - name: Upload coverage artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report
+                  path: |
+                      coverage.html
+                      coverage.out
+                  retention-days: 7
+
+            - name: Upload build artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: mcp-bridge-linux-amd64
+                  path: bin/mcp-bridge
+                  retention-days: 7

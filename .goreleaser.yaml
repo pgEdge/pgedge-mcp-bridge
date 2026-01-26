@@ -1,0 +1,69 @@
+# GoReleaser configuration for MCP HTTP Bridge
+# https://goreleaser.com
+
+version: 2
+
+before:
+    hooks:
+        - go mod tidy
+        - go fmt ./...
+
+builds:
+    - id: mcp-bridge
+      binary: mcp-bridge
+      main: ./cmd/mcp-bridge
+      env:
+          - CGO_ENABLED=0
+      goos:
+          - linux
+          - darwin
+          - windows
+      goarch:
+          - amd64
+          - arm64
+      ldflags:
+          - -s -w
+          - -X github.com/pgEdge/pgedge-mcp-bridge/pkg/version.Version={{.Version}}
+          - -X github.com/pgEdge/pgedge-mcp-bridge/pkg/version.GitCommit={{.ShortCommit}}
+          - -X github.com/pgEdge/pgedge-mcp-bridge/pkg/version.BuildTime={{.Date}}
+
+archives:
+    - id: mcp-bridge
+      builds:
+          - mcp-bridge
+      name_template: >-
+          {{ .ProjectName }}_
+          {{- .Version }}_
+          {{- .Os }}_
+          {{- if eq .Arch "amd64" }}x86_64
+          {{- else }}{{ .Arch }}{{ end }}
+      format_overrides:
+          - goos: windows
+            format: zip
+      files:
+          - README.md
+          - examples/**/*
+
+checksum:
+    name_template: "checksums.txt"
+
+snapshot:
+    version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+    sort: asc
+    filters:
+        exclude:
+            - "^docs:"
+            - "^test:"
+            - "^chore:"
+            - Merge pull request
+            - Merge branch
+
+release:
+    github:
+        owner: pgEdge
+        name: pgedge-mcp-bridge
+    draft: false
+    prerelease: auto
+    name_template: "{{.ProjectName}} v{{.Version}}"
