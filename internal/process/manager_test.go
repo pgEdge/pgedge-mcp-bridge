@@ -1006,12 +1006,17 @@ func TestWorkingDirectory(t *testing.T) {
 		t.Fatal("Stdout() is nil")
 	}
 
-	buf := make([]byte, 256)
-	done := make(chan int, 1)
+	// Use io.ReadAll to read until EOF, ensuring we get all output
+	done := make(chan []byte, 1)
+	errCh := make(chan error, 1)
 
 	go func() {
-		n, _ := stdout.Read(buf)
-		done <- n
+		data, err := io.ReadAll(stdout)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		done <- data
 	}()
 
 	// Resolve symlinks for expected path (e.g., on macOS /tmp -> /private/tmp)
@@ -1021,12 +1026,14 @@ func TestWorkingDirectory(t *testing.T) {
 	}
 
 	select {
-	case n := <-done:
-		output := strings.TrimSpace(string(buf[:n]))
+	case data := <-done:
+		output := strings.TrimSpace(string(data))
 		if output != expectedDir {
 			t.Errorf("Working directory = %q, want %q", output, expectedDir)
 		}
-	case <-time.After(2 * time.Second):
+	case err := <-errCh:
+		t.Errorf("Error reading stdout: %v", err)
+	case <-time.After(5 * time.Second):
 		t.Error("Timeout waiting for stdout")
 	}
 }
