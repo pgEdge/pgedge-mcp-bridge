@@ -37,8 +37,10 @@ func newMockReader(data string) *mockReader {
 func (r *mockReader) Read(p []byte) (n int, err error) {
 	r.mu.Lock()
 	if r.blocked {
+		// Store channel reference while holding lock to avoid race with Unblock()
+		unblock := r.unblock
 		r.mu.Unlock()
-		<-r.unblock
+		<-unblock
 		r.mu.Lock()
 	}
 	defer r.mu.Unlock()

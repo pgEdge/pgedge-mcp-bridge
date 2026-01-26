@@ -869,6 +869,50 @@ func (m *mockFlusherRecorder) Flush() {
 	m.flushed = true
 }
 
+// syncMockFlusherRecorder is a thread-safe version of mockFlusherRecorder
+// that protects concurrent access to the underlying response body.
+type syncMockFlusherRecorder struct {
+	mu      sync.Mutex
+	rr      *httptest.ResponseRecorder
+	flushed bool
+}
+
+func newSyncMockFlusherRecorder() *syncMockFlusherRecorder {
+	return &syncMockFlusherRecorder{
+		rr: httptest.NewRecorder(),
+	}
+}
+
+func (m *syncMockFlusherRecorder) Header() http.Header {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.rr.Header()
+}
+
+func (m *syncMockFlusherRecorder) Write(b []byte) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.rr.Write(b)
+}
+
+func (m *syncMockFlusherRecorder) WriteHeader(code int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rr.WriteHeader(code)
+}
+
+func (m *syncMockFlusherRecorder) Flush() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.flushed = true
+}
+
+func (m *syncMockFlusherRecorder) BodyString() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.rr.Body.String()
+}
+
 func TestMCPHandler_HandleSSE_EstablishesConnection(t *testing.T) {
 	handler, pm := newTestHandler()
 	defer pm.Close()
@@ -1128,8 +1172,8 @@ func TestMCPHandler_ReadLoop_NotificationRouting(t *testing.T) {
 	// Manually start the read loop
 	handler.ensureReadLoop()
 
-	// Register an SSE client
-	rr := newMockFlusherRecorder()
+	// Register an SSE client using thread-safe recorder to avoid data races
+	rr := newSyncMockFlusherRecorder()
 	sse := NewSSEWriter(rr, rr)
 	handler.sseClientsMu.Lock()
 	handler.sseClients[session.ID] = sse
@@ -1142,8 +1186,8 @@ func TestMCPHandler_ReadLoop_NotificationRouting(t *testing.T) {
 	// Give time for routing
 	time.Sleep(100 * time.Millisecond)
 
-	// Check if notification was sent to SSE client
-	body := rr.Body.String()
+	// Check if notification was sent to SSE client (using thread-safe accessor)
+	body := rr.BodyString()
 	if !strings.Contains(body, "tools/list_changed") && !strings.Contains(body, "notifications") {
 		// The notification may have been routed through session notifications instead
 		// Check session notifications channel

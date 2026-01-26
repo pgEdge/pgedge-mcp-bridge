@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1003,11 +1004,17 @@ func TestWorkingDirectory(t *testing.T) {
 		done <- n
 	}()
 
+	// Resolve symlinks for expected path (e.g., on macOS /tmp -> /private/tmp)
+	expectedDir, err := filepath.EvalSymlinks("/tmp")
+	if err != nil {
+		expectedDir = "/tmp"
+	}
+
 	select {
 	case n := <-done:
 		output := strings.TrimSpace(string(buf[:n]))
-		if output != "/tmp" {
-			t.Errorf("Working directory = %q, want /tmp", output)
+		if output != expectedDir {
+			t.Errorf("Working directory = %q, want %q", output, expectedDir)
 		}
 	case <-time.After(2 * time.Second):
 		t.Error("Timeout waiting for stdout")
