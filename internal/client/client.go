@@ -1,3 +1,13 @@
+/*-------------------------------------------------------------------------
+ *
+ * pgEdge MCP Bridge
+ *
+ * Copyright (c) 2025 - 2026, pgEdge, Inc.
+ * This software is released under The PostgreSQL License
+ *
+ *-------------------------------------------------------------------------
+ */
+
 // Package client provides an HTTP client implementation for the MCP HTTP bridge.
 // It connects to a remote HTTP MCP server and exposes it locally via stdio,
 // enabling MCP clients to communicate with HTTP-based MCP servers.

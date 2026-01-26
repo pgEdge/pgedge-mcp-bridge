@@ -1,3 +1,13 @@
+/*-------------------------------------------------------------------------
+ *
+ * pgEdge MCP Bridge
+ *
+ * Copyright (c) 2025 - 2026, pgEdge, Inc.
+ * This software is released under The PostgreSQL License
+ *
+ *-------------------------------------------------------------------------
+ */
+
 // Package cors provides CORS (Cross-Origin Resource Sharing) handling for HTTP servers.
 package cors
 

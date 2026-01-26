@@ -1,3 +1,13 @@
+/*-------------------------------------------------------------------------
+ *
+ * pgEdge MCP Bridge
+ *
+ * Copyright (c) 2025 - 2026, pgEdge, Inc.
+ * This software is released under The PostgreSQL License
+ *
+ *-------------------------------------------------------------------------
+ */
+
 // Package logging provides structured logging with configurable levels and formats
 // for the MCP HTTP bridge.
 package logging

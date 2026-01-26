@@ -1,3 +1,13 @@
+/*-------------------------------------------------------------------------
+ *
+ * pgEdge MCP Bridge
+ *
+ * Copyright (c) 2025 - 2026, pgEdge, Inc.
+ * This software is released under The PostgreSQL License
+ *
+ *-------------------------------------------------------------------------
+ */
+
 // Package auth provides authentication and authorization for the MCP HTTP bridge.
 // It supports both server mode (validating incoming requests) and client mode
 // (authenticating outgoing requests).

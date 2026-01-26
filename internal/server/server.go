@@ -1,3 +1,13 @@
+/*-------------------------------------------------------------------------
+ *
+ * pgEdge MCP Bridge
+ *
+ * Copyright (c) 2025 - 2026, pgEdge, Inc.
+ * This software is released under The PostgreSQL License
+ *
+ *-------------------------------------------------------------------------
+ */
+
 // Package server implements the HTTP server mode for the MCP HTTP bridge.
 // It exposes a stdio-based MCP server over HTTP, handling JSON-RPC requests,
 // Server-Sent Events for notifications, and session management.
