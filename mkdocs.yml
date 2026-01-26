@@ -63,3 +63,14 @@ repo_url: https://github.com/pgEdge/pgedge-mcp-bridge
 
 nav:
   - Home: index.md
+  - Getting Started:
+      - Installation: guide/installation.md
+      - Server Mode: guide/server-mode.md
+      - Client Mode: guide/client-mode.md
+  - Configuration:
+      - Configuration Reference: guide/configuration.md
+      - Authentication: guide/authentication.md
+      - TLS: guide/tls.md
+  - Reference:
+      - CLI Reference: reference/cli.md
+      - API Reference: reference/api.md
