@@ -403,7 +403,7 @@ func (b *StdioBridge) ForwardStderr(w io.Writer) error {
 				return
 			}
 			if n > 0 {
-				w.Write(buf[:n])
+				_, _ = w.Write(buf[:n]) // Best effort write to stderr forwarder
 			}
 		}
 	}()

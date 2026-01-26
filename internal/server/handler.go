@@ -42,9 +42,6 @@ type MCPHandler struct {
 	// logger is used for structured logging.
 	logger *logging.Logger
 
-	// codec is used for encoding/decoding JSON-RPC messages.
-	codec *protocol.Codec
-
 	// mu protects concurrent access to the subprocess I/O.
 	mu sync.Mutex
 
@@ -131,7 +128,6 @@ func (h *MCPHandler) HandlePost(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, http.StatusServiceUnavailable, "failed to create session")
 			return
 		}
-		sessionID = session.ID
 	}
 
 	// Read request body
@@ -396,7 +392,7 @@ func (h *MCPHandler) HandleSessionClose(w http.ResponseWriter, r *http.Request) 
 	// Close SSE connection if exists
 	h.sseClientsMu.Lock()
 	if sse, exists := h.sseClients[sessionID]; exists {
-		sse.WriteEvent("close", `{"reason":"session_closed"}`)
+		_ = sse.WriteEvent("close", `{"reason":"session_closed"}`) // Best effort
 		delete(h.sseClients, sessionID)
 	}
 	h.sseClientsMu.Unlock()
@@ -523,7 +519,7 @@ func (h *MCPHandler) routeNotification(data []byte, msg *protocol.Message) {
 func (h *MCPHandler) writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", ContentTypeJSON)
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message}) // Best effort
 }
 
 // writeJSONRPCError writes a JSON-RPC error response.
@@ -531,7 +527,7 @@ func (h *MCPHandler) writeJSONRPCError(w http.ResponseWriter, id protocol.Reques
 	resp := protocol.NewErrorResponse(id, err)
 	w.Header().Set("Content-Type", ContentTypeJSON)
 	w.WriteHeader(http.StatusOK) // JSON-RPC errors use 200 OK
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp) // Best effort
 }
 
 // Shutdown gracefully shuts down the handler.
@@ -539,7 +535,7 @@ func (h *MCPHandler) Shutdown(ctx context.Context) error {
 	// Close all SSE connections
 	h.sseClientsMu.Lock()
 	for sessionID, sse := range h.sseClients {
-		sse.WriteEvent("close", `{"reason":"server_shutdown"}`)
+		_ = sse.WriteEvent("close", `{"reason":"server_shutdown"}`) // Best effort
 		delete(h.sseClients, sessionID)
 	}
 	h.sseClientsMu.Unlock()

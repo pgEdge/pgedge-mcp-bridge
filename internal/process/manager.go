@@ -324,7 +324,7 @@ func (m *manager) Stop(ctx context.Context) error {
 		// Process may have already exited
 		if !errors.Is(err, os.ErrProcessDone) {
 			// Try SIGKILL immediately
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill() // Best effort kill
 		}
 	}
 
@@ -345,7 +345,7 @@ func (m *manager) Stop(ctx context.Context) error {
 	case <-timer.C:
 		// Timeout, send SIGKILL
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill() // Best effort kill on timeout
 		}
 		// Wait for the kill to take effect
 		select {
@@ -355,7 +355,7 @@ func (m *manager) Stop(ctx context.Context) error {
 	case <-ctx.Done():
 		// Context cancelled, force kill
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill() // Best effort kill on context cancel
 		}
 		return ctx.Err()
 	}

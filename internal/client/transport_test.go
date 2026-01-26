@@ -1095,7 +1095,7 @@ func TestTransport_Send_ReadBodyError(t *testing.T) {
 	defer transport.Close()
 
 	ctx := context.Background()
-	_, _, err = transport.Send(ctx, []byte(`{}`), "")
+	_, _, _ = transport.Send(ctx, []byte(`{}`), "")
 	// May or may not error depending on HTTP client behavior
 	// Just ensure no panic
 }

@@ -297,9 +297,7 @@ func TestRequest_Validate(t *testing.T) {
 					t.Errorf("Validate() expected error containing %q", tt.errMsg)
 					return
 				}
-				if tt.errMsg != "" && err.Error() != "" {
-					// Just check the error is not nil for now
-				}
+				// Error occurred as expected
 			} else {
 				if err != nil {
 					t.Errorf("Validate() unexpected error = %v", err)

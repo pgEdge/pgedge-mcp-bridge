@@ -310,7 +310,9 @@ func TestValidateServer_InvalidTLSConfig_MissingCert(t *testing.T) {
 func TestValidateServer_InvalidTLSConfig_MissingKey(t *testing.T) {
 	tmpDir := t.TempDir()
 	certFile := filepath.Join(tmpDir, "cert.pem")
-	os.WriteFile(certFile, []byte("cert content"), 0644)
+	if err := os.WriteFile(certFile, []byte("cert content"), 0644); err != nil {
+		t.Fatalf("failed to write test cert file: %v", err)
+	}
 
 	server := &ServerConfig{
 		Listen: ":8080",
@@ -356,7 +358,9 @@ func TestValidateServer_TLSConfig_NonExistentCertFile(t *testing.T) {
 func TestValidateServer_TLSConfig_NonExistentKeyFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	certFile := filepath.Join(tmpDir, "cert.pem")
-	os.WriteFile(certFile, []byte("cert content"), 0644)
+	if err := os.WriteFile(certFile, []byte("cert content"), 0644); err != nil {
+		t.Fatalf("failed to write test cert file: %v", err)
+	}
 
 	server := &ServerConfig{
 		Listen: ":8080",
@@ -382,8 +386,12 @@ func TestValidateServer_TLSConfig_InvalidClientAuth(t *testing.T) {
 	tmpDir := t.TempDir()
 	certFile := filepath.Join(tmpDir, "cert.pem")
 	keyFile := filepath.Join(tmpDir, "key.pem")
-	os.WriteFile(certFile, []byte("cert content"), 0644)
-	os.WriteFile(keyFile, []byte("key content"), 0644)
+	if err := os.WriteFile(certFile, []byte("cert content"), 0644); err != nil {
+		t.Fatalf("failed to write test cert file: %v", err)
+	}
+	if err := os.WriteFile(keyFile, []byte("key content"), 0644); err != nil {
+		t.Fatalf("failed to write test key file: %v", err)
+	}
 
 	server := &ServerConfig{
 		Listen: ":8080",
@@ -1402,12 +1410,23 @@ client:
 func TestFindConfigFile_InCurrentDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
-	os.WriteFile(configPath, []byte("mode: server\n"), 0644)
+	if err := os.WriteFile(configPath, []byte("mode: server\n"), 0644); err != nil {
+		t.Fatalf("failed to write test config file: %v", err)
+	}
 
 	// Change to the temp directory
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Errorf("failed to restore working directory: %v", err)
+		}
+	}()
 
 	found, err := FindConfigFile()
 	if err != nil {
@@ -1423,11 +1442,20 @@ func TestFindConfigFile_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Change to the temp directory (which has no config.yaml)
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Errorf("failed to restore working directory: %v", err)
+		}
+	}()
 
-	_, err := FindConfigFile()
+	_, err = FindConfigFile()
 	if err == nil {
 		t.Fatal("expected error when config file not found")
 	}

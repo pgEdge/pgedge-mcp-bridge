@@ -234,7 +234,7 @@ func (s *Server) Start(ctx context.Context) error {
 		// Clean up subprocess on listener error
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		s.processManager.Stop(stopCtx)
+		_ = s.processManager.Stop(stopCtx) // Best effort cleanup
 		return fmt.Errorf("creating listener: %w", err)
 	}
 
@@ -381,7 +381,7 @@ func (s *Server) monitorProcessEvents(ctx context.Context) {
 				go func() {
 					stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 					defer cancel()
-					s.Stop(stopCtx)
+					_ = s.Stop(stopCtx) // Best effort shutdown
 				}()
 			}
 		}

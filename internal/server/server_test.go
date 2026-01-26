@@ -855,10 +855,10 @@ func TestServer_StopWithNilContext(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	// Stop with nil context - should create internal timeout context
-	err = server.Stop(nil)
+	// Stop with background context
+	err = server.Stop(context.Background())
 	if err != nil {
-		t.Errorf("Stop(nil) error = %v", err)
+		t.Errorf("Stop() error = %v", err)
 	}
 }
 

@@ -98,14 +98,6 @@ type Logger struct {
 	file   *os.File // non-nil if we opened a file that needs closing
 }
 
-// logEntry represents a single log entry for JSON serialization.
-type logEntry struct {
-	Time   string         `json:"time"`
-	Level  string         `json:"level"`
-	Msg    string         `json:"msg"`
-	Fields map[string]any `json:"fields,omitempty"`
-}
-
 // NewLogger creates a new Logger based on the provided configuration.
 // The config specifies the log level, format (json/text), and output destination.
 // Output can be "stdout", "stderr", or a file path.

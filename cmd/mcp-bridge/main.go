@@ -174,11 +174,9 @@ func run() int {
 		// Cancel the main context to signal services to stop
 		cancel()
 
-		// Call the shutdown function if available
-		if shutdown != nil {
-			if err := shutdown(shutdownCtx); err != nil {
-				logger.Error("Error during shutdown", "error", err)
-			}
+		// Call the shutdown function
+		if err := shutdown(shutdownCtx); err != nil {
+			logger.Error("Error during shutdown", "error", err)
 		}
 
 		// Wait for the service goroutine to finish
