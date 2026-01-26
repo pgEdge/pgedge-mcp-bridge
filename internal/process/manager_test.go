@@ -987,8 +987,17 @@ func TestEventTypeStrings(t *testing.T) {
 func TestWorkingDirectory(t *testing.T) {
 	t.Parallel()
 
+	// Resolve symlinks for expected path (e.g., on macOS /tmp -> /private/tmp)
+	expectedDir, err := filepath.EvalSymlinks("/tmp")
+	if err != nil {
+		expectedDir = "/tmp"
+	}
+
+	// Use sh -c to ensure we capture output before pipe closes.
+	// The shell wrapper provides enough delay for the reader to start.
 	m := NewManager(ManagerConfig{
-		Command: "pwd",
+		Command: "sh",
+		Args:    []string{"-c", "pwd"},
 		Dir:     "/tmp",
 	})
 	defer m.Close()
@@ -1000,41 +1009,21 @@ func TestWorkingDirectory(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	// Read stdout
+	// Read stdout - get it immediately after Start
 	stdout := m.Stdout()
 	if stdout == nil {
 		t.Fatal("Stdout() is nil")
 	}
 
-	// Use io.ReadAll to read until EOF, ensuring we get all output
-	done := make(chan []byte, 1)
-	errCh := make(chan error, 1)
-
-	go func() {
-		data, err := io.ReadAll(stdout)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		done <- data
-	}()
-
-	// Resolve symlinks for expected path (e.g., on macOS /tmp -> /private/tmp)
-	expectedDir, err := filepath.EvalSymlinks("/tmp")
+	// Read all output using io.ReadAll which handles pipe closure gracefully
+	data, err := io.ReadAll(stdout)
 	if err != nil {
-		expectedDir = "/tmp"
+		t.Fatalf("Error reading stdout: %v", err)
 	}
 
-	select {
-	case data := <-done:
-		output := strings.TrimSpace(string(data))
-		if output != expectedDir {
-			t.Errorf("Working directory = %q, want %q", output, expectedDir)
-		}
-	case err := <-errCh:
-		t.Errorf("Error reading stdout: %v", err)
-	case <-time.After(5 * time.Second):
-		t.Error("Timeout waiting for stdout")
+	output := strings.TrimSpace(string(data))
+	if output != expectedDir {
+		t.Errorf("Working directory = %q, want %q", output, expectedDir)
 	}
 }
 
