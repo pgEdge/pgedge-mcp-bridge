@@ -30,13 +30,13 @@ type Config struct {
 
 // ServerConfig contains HTTP server mode configuration
 type ServerConfig struct {
-	Listen       string        `yaml:"listen"`
-	TLS          *TLSConfig    `yaml:"tls,omitempty"`
-	CORS         *CORSConfig   `yaml:"cors,omitempty"`
-	Auth         *AuthConfig   `yaml:"auth,omitempty"`
-	ReadTimeout  time.Duration `yaml:"read_timeout"`
-	WriteTimeout time.Duration `yaml:"write_timeout"`
-	IdleTimeout  time.Duration `yaml:"idle_timeout"`
+	Listen       string          `yaml:"listen"`
+	TLS          *TLSConfig      `yaml:"tls,omitempty"`
+	CORS         *CORSConfig     `yaml:"cors,omitempty"`
+	Auth         *AuthConfig     `yaml:"auth,omitempty"`
+	ReadTimeout  time.Duration   `yaml:"read_timeout"`
+	WriteTimeout time.Duration   `yaml:"write_timeout"`
+	IdleTimeout  time.Duration   `yaml:"idle_timeout"`
 	MCPServer    MCPServerConfig `yaml:"mcp_server"`
 	Session      SessionConfig   `yaml:"session"`
 }
@@ -97,9 +97,9 @@ type CORSConfig struct {
 
 // AuthConfig defines authentication settings
 type AuthConfig struct {
-	Type   string             `yaml:"type"`
-	Bearer *BearerAuthConfig  `yaml:"bearer,omitempty"`
-	OAuth  *OAuthConfig       `yaml:"oauth,omitempty"`
+	Type   string            `yaml:"type"`
+	Bearer *BearerAuthConfig `yaml:"bearer,omitempty"`
+	OAuth  *OAuthConfig      `yaml:"oauth,omitempty"`
 }
 
 // BearerAuthConfig for simple bearer token auth

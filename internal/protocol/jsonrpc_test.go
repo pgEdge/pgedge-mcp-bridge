@@ -387,8 +387,8 @@ func TestResponse_NewResponse(t *testing.T) {
 			result: map[string]string{"status": "ok"},
 		},
 		{
-			name:   "complex result",
-			id:     NewStringID("req-123"),
+			name: "complex result",
+			id:   NewStringID("req-123"),
 			result: InitializeResult{
 				ProtocolVersion: "2025-06-18",
 				ServerInfo:      Implementation{Name: "test", Version: "1.0"},

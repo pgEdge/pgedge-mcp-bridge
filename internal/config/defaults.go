@@ -4,28 +4,28 @@ import "time"
 
 // Default configuration values
 const (
-	DefaultServerListen       = ":8080"
-	DefaultReadTimeout        = 30 * time.Second
-	DefaultWriteTimeout       = 60 * time.Second
-	DefaultIdleTimeout        = 120 * time.Second
-	DefaultClientTimeout      = 30 * time.Second
-	DefaultMaxIdleConns       = 10
-	DefaultIdleConnTimeout    = 90 * time.Second
-	DefaultSessionTimeout     = 30 * time.Minute
-	DefaultMaxSessions        = 100
-	DefaultCleanupInterval    = 5 * time.Minute
-	DefaultGracefulShutdown   = 30 * time.Second
-	DefaultMaxRestarts        = 5
-	DefaultRestartDelay       = 5 * time.Second
-	DefaultRetryMaxRetries    = 3
-	DefaultRetryInitialDelay  = 100 * time.Millisecond
-	DefaultRetryMaxDelay      = 5 * time.Second
-	DefaultRetryMultiplier    = 2.0
-	DefaultLogLevel           = "info"
-	DefaultLogFormat          = "text"
-	DefaultLogOutput          = "stderr"
-	DefaultTLSMinVersion      = "1.2"
-	DefaultCORSMaxAge         = 86400
+	DefaultServerListen      = ":8080"
+	DefaultReadTimeout       = 30 * time.Second
+	DefaultWriteTimeout      = 60 * time.Second
+	DefaultIdleTimeout       = 120 * time.Second
+	DefaultClientTimeout     = 30 * time.Second
+	DefaultMaxIdleConns      = 10
+	DefaultIdleConnTimeout   = 90 * time.Second
+	DefaultSessionTimeout    = 30 * time.Minute
+	DefaultMaxSessions       = 100
+	DefaultCleanupInterval   = 5 * time.Minute
+	DefaultGracefulShutdown  = 30 * time.Second
+	DefaultMaxRestarts       = 5
+	DefaultRestartDelay      = 5 * time.Second
+	DefaultRetryMaxRetries   = 3
+	DefaultRetryInitialDelay = 100 * time.Millisecond
+	DefaultRetryMaxDelay     = 5 * time.Second
+	DefaultRetryMultiplier   = 2.0
+	DefaultLogLevel          = "info"
+	DefaultLogFormat         = "text"
+	DefaultLogOutput         = "stderr"
+	DefaultTLSMinVersion     = "1.2"
+	DefaultCORSMaxAge        = 86400
 )
 
 // DefaultCORSMethods is the default list of allowed HTTP methods

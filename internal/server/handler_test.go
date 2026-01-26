@@ -50,10 +50,10 @@ func (m *mockStdinWriter) GetWritten() [][]byte {
 
 // nonBlockingWriter is a writer that buffers writes without blocking
 type nonBlockingWriter struct {
-	mu      sync.Mutex
-	buf     bytes.Buffer
-	closed  bool
-	err     error
+	mu     sync.Mutex
+	buf    bytes.Buffer
+	closed bool
+	err    error
 }
 
 func (w *nonBlockingWriter) Write(p []byte) (int, error) {
@@ -89,16 +89,16 @@ func (w *nonBlockingWriter) SetError(err error) {
 
 // testMockProcessManager is a more controllable mock for handler tests
 type testMockProcessManager struct {
-	mu              sync.RWMutex
-	running         bool
-	stdinWriter     *nonBlockingWriter
-	stdoutReader    *io.PipeReader
-	stdoutWriter    *io.PipeWriter
-	stderrReader    *io.PipeReader
-	stderrWriter    *io.PipeWriter
-	events          chan process.Event
-	state           process.ProcessState
-	pid             int
+	mu           sync.RWMutex
+	running      bool
+	stdinWriter  *nonBlockingWriter
+	stdoutReader *io.PipeReader
+	stdoutWriter *io.PipeWriter
+	stderrReader *io.PipeReader
+	stderrWriter *io.PipeWriter
+	events       chan process.Event
+	state        process.ProcessState
+	pid          int
 }
 
 func newTestMockProcessManager() *testMockProcessManager {

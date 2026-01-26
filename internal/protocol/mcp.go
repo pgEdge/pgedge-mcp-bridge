@@ -22,25 +22,25 @@ const (
 
 // MCP method constants.
 const (
-	MethodInitialize          = "initialize"
-	MethodInitialized         = "notifications/initialized"
-	MethodShutdown            = "shutdown"
-	MethodExit                = "exit"
-	MethodToolsList           = "tools/list"
-	MethodToolsCall           = "tools/call"
-	MethodResourcesList       = "resources/list"
-	MethodResourcesRead       = "resources/read"
-	MethodResourcesSubscribe  = "resources/subscribe"
-	MethodPromptsList         = "prompts/list"
-	MethodPromptsGet          = "prompts/get"
-	MethodLoggingSetLevel     = "logging/setLevel"
-	MethodProgress            = "notifications/progress"
-	MethodCancelled           = "notifications/cancelled"
-	MethodResourcesUpdated    = "notifications/resources/updated"
+	MethodInitialize           = "initialize"
+	MethodInitialized          = "notifications/initialized"
+	MethodShutdown             = "shutdown"
+	MethodExit                 = "exit"
+	MethodToolsList            = "tools/list"
+	MethodToolsCall            = "tools/call"
+	MethodResourcesList        = "resources/list"
+	MethodResourcesRead        = "resources/read"
+	MethodResourcesSubscribe   = "resources/subscribe"
+	MethodPromptsList          = "prompts/list"
+	MethodPromptsGet           = "prompts/get"
+	MethodLoggingSetLevel      = "logging/setLevel"
+	MethodProgress             = "notifications/progress"
+	MethodCancelled            = "notifications/cancelled"
+	MethodResourcesUpdated     = "notifications/resources/updated"
 	MethodResourcesListChanged = "notifications/resources/list_changed"
-	MethodToolsListChanged    = "notifications/tools/list_changed"
-	MethodPromptsListChanged  = "notifications/prompts/list_changed"
-	MethodMessage             = "notifications/message"
+	MethodToolsListChanged     = "notifications/tools/list_changed"
+	MethodPromptsListChanged   = "notifications/prompts/list_changed"
+	MethodMessage              = "notifications/message"
 )
 
 // Implementation represents client or server implementation information.
@@ -323,11 +323,11 @@ type ContentAnnotations struct {
 
 // RawContent is used for unmarshaling content when the type is not known.
 type RawContent struct {
-	Type        ContentType        `json:"type"`
-	Text        string             `json:"text,omitempty"`
-	Data        string             `json:"data,omitempty"`
-	MimeType    string             `json:"mimeType,omitempty"`
-	Resource    *EmbeddedResource  `json:"resource,omitempty"`
+	Type        ContentType         `json:"type"`
+	Text        string              `json:"text,omitempty"`
+	Data        string              `json:"data,omitempty"`
+	MimeType    string              `json:"mimeType,omitempty"`
+	Resource    *EmbeddedResource   `json:"resource,omitempty"`
 	Annotations *ContentAnnotations `json:"annotations,omitempty"`
 }
 

@@ -19,23 +19,23 @@ import (
 
 // mockProcessManager implements process.Manager for testing
 type mockProcessManager struct {
-	mu              sync.RWMutex
-	running         bool
-	stdinWriter     *io.PipeWriter
-	stdinReader     *io.PipeReader
-	stdoutWriter    *io.PipeWriter
-	stdoutReader    *io.PipeReader
-	stderrWriter    *io.PipeWriter
-	stderrReader    *io.PipeReader
-	events          chan process.Event
-	startErr        error
-	stopErr         error
-	state           process.ProcessState
-	pid             int
-	restartCount    int
-	closed          bool
-	startCalled     bool
-	stopCalled      bool
+	mu           sync.RWMutex
+	running      bool
+	stdinWriter  *io.PipeWriter
+	stdinReader  *io.PipeReader
+	stdoutWriter *io.PipeWriter
+	stdoutReader *io.PipeReader
+	stderrWriter *io.PipeWriter
+	stderrReader *io.PipeReader
+	events       chan process.Event
+	startErr     error
+	stopErr      error
+	state        process.ProcessState
+	pid          int
+	restartCount int
+	closed       bool
+	startCalled  bool
+	stopCalled   bool
 }
 
 func newMockProcessManager() *mockProcessManager {
@@ -689,7 +689,7 @@ func TestServer_CORSDisabled(t *testing.T) {
 // TestServer_StartAndStop tests the server lifecycle
 func TestServer_StartAndStop(t *testing.T) {
 	cfg := newTestServerConfig()
-	cfg.Listen = "127.0.0.1:0" // Use port 0 to get a random available port
+	cfg.Listen = "127.0.0.1:0"    // Use port 0 to get a random available port
 	cfg.MCPServer.Command = "cat" // Simple command that reads stdin
 	logger := newTestLogger(t)
 

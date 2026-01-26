@@ -377,34 +377,34 @@ func TestAuthMiddleware_Handler(t *testing.T) {
 // TestRequireScopes tests the RequireScopes middleware.
 func TestRequireScopes(t *testing.T) {
 	tests := []struct {
-		name           string
+		name            string
 		principalScopes []string
-		requiredScopes []string
-		wantStatus     int
+		requiredScopes  []string
+		wantStatus      int
 	}{
 		{
-			name:           "has all required scopes",
+			name:            "has all required scopes",
 			principalScopes: []string{"read", "write", "admin"},
-			requiredScopes: []string{"read", "write"},
-			wantStatus:     http.StatusOK,
+			requiredScopes:  []string{"read", "write"},
+			wantStatus:      http.StatusOK,
 		},
 		{
-			name:           "missing one scope",
+			name:            "missing one scope",
 			principalScopes: []string{"read"},
-			requiredScopes: []string{"read", "write"},
-			wantStatus:     http.StatusForbidden,
+			requiredScopes:  []string{"read", "write"},
+			wantStatus:      http.StatusForbidden,
 		},
 		{
-			name:           "no scopes required",
+			name:            "no scopes required",
 			principalScopes: []string{},
-			requiredScopes: []string{},
-			wantStatus:     http.StatusOK,
+			requiredScopes:  []string{},
+			wantStatus:      http.StatusOK,
 		},
 		{
-			name:           "has exact scopes",
+			name:            "has exact scopes",
 			principalScopes: []string{"admin"},
-			requiredScopes: []string{"admin"},
-			wantStatus:     http.StatusOK,
+			requiredScopes:  []string{"admin"},
+			wantStatus:      http.StatusOK,
 		},
 	}
 
@@ -453,28 +453,28 @@ func TestRequireScopes_NoPrincipal(t *testing.T) {
 // TestRequireAnyScope tests the RequireAnyScope middleware.
 func TestRequireAnyScope(t *testing.T) {
 	tests := []struct {
-		name           string
+		name            string
 		principalScopes []string
-		requiredScopes []string
-		wantStatus     int
+		requiredScopes  []string
+		wantStatus      int
 	}{
 		{
-			name:           "has one of required scopes",
+			name:            "has one of required scopes",
 			principalScopes: []string{"read"},
-			requiredScopes: []string{"read", "write", "admin"},
-			wantStatus:     http.StatusOK,
+			requiredScopes:  []string{"read", "write", "admin"},
+			wantStatus:      http.StatusOK,
 		},
 		{
-			name:           "has none of required scopes",
+			name:            "has none of required scopes",
 			principalScopes: []string{"execute"},
-			requiredScopes: []string{"read", "write"},
-			wantStatus:     http.StatusForbidden,
+			requiredScopes:  []string{"read", "write"},
+			wantStatus:      http.StatusForbidden,
 		},
 		{
-			name:           "has all required scopes",
+			name:            "has all required scopes",
 			principalScopes: []string{"read", "write"},
-			requiredScopes: []string{"read", "write"},
-			wantStatus:     http.StatusOK,
+			requiredScopes:  []string{"read", "write"},
+			wantStatus:      http.StatusOK,
 		},
 	}
 
@@ -522,28 +522,28 @@ func TestRequireAnyScope_NoPrincipal(t *testing.T) {
 // TestRequirePrincipalType tests the RequirePrincipalType middleware.
 func TestRequirePrincipalType(t *testing.T) {
 	tests := []struct {
-		name         string
+		name          string
 		principalType PrincipalType
-		requiredType PrincipalType
-		wantStatus   int
+		requiredType  PrincipalType
+		wantStatus    int
 	}{
 		{
-			name:         "matching type",
+			name:          "matching type",
 			principalType: PrincipalTypeUser,
-			requiredType: PrincipalTypeUser,
-			wantStatus:   http.StatusOK,
+			requiredType:  PrincipalTypeUser,
+			wantStatus:    http.StatusOK,
 		},
 		{
-			name:         "non-matching type",
+			name:          "non-matching type",
 			principalType: PrincipalTypeService,
-			requiredType: PrincipalTypeUser,
-			wantStatus:   http.StatusForbidden,
+			requiredType:  PrincipalTypeUser,
+			wantStatus:    http.StatusForbidden,
 		},
 		{
-			name:         "service type match",
+			name:          "service type match",
 			principalType: PrincipalTypeService,
-			requiredType: PrincipalTypeService,
-			wantStatus:   http.StatusOK,
+			requiredType:  PrincipalTypeService,
+			wantStatus:    http.StatusOK,
 		},
 	}
 
@@ -744,8 +744,8 @@ func TestHealthCheckSkipper(t *testing.T) {
 	skipper := HealthCheckSkipper("/health", "/ready", "/live")
 
 	tests := []struct {
-		path       string
-		wantAuth   bool
+		path     string
+		wantAuth bool
 	}{
 		{"/health", false},
 		{"/ready", false},

@@ -232,10 +232,10 @@ func TestPrincipal_HasScope(t *testing.T) {
 // TestPrincipal_HasAllScopes tests the HasAllScopes method.
 func TestPrincipal_HasAllScopes(t *testing.T) {
 	tests := []struct {
-		name       string
-		scopes     []string
-		checkFor   []string
-		want       bool
+		name     string
+		scopes   []string
+		checkFor []string
+		want     bool
 	}{
 		{
 			name:     "has all scopes",
@@ -461,10 +461,10 @@ func TestPrincipal_GetStringClaim(t *testing.T) {
 // TestPrincipalFromContext tests the PrincipalFromContext function.
 func TestPrincipalFromContext(t *testing.T) {
 	tests := []struct {
-		name      string
-		setupCtx  func() context.Context
-		wantNil   bool
-		wantID    string
+		name     string
+		setupCtx func() context.Context
+		wantNil  bool
+		wantID   string
 	}{
 		{
 			name: "principal in context",

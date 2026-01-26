@@ -1598,4 +1598,3 @@ func TestCloseWithActiveReaders(t *testing.T) {
 		t.Error("Timeout waiting for Close() with active reader")
 	}
 }
-

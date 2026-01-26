@@ -1035,9 +1035,9 @@ func (a *mockAuthProvider) Close() error {
 // TestTransport_Send_AuthorizationHeaderTypes tests various authorization scenarios
 func TestTransport_Send_AuthorizationHeaderTypes(t *testing.T) {
 	tests := []struct {
-		name     string
-		status   int
-		useAuth  bool
+		name    string
+		status  int
+		useAuth bool
 	}{
 		{"no auth needed", http.StatusOK, false},
 		{"with auth", http.StatusOK, true},
