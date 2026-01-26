@@ -5,6 +5,15 @@ All notable changes to the pgEdge MCP Bridge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha2] - 2026-01-26
+
+### Added
+
+- **Licence**: Added The PostgreSQL License file and documentation page
+- **Copyright Headers**: Added standard pgEdge copyright headers to all Go source files
+
+[1.0.0-alpha2]: https://github.com/pgEdge/pgedge-mcp-bridge/releases/tag/v1.0.0-alpha2
+
 ## [1.0.0-alpha1] - 2026-01-26
 
 ### Added
