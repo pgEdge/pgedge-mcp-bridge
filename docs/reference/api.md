@@ -388,6 +388,23 @@ curl -X POST https://mcp.example.com/oauth/token \
   -d "code_verifier=VERIFIER"
 ```
 
+### GET /oauth/callback
+
+Callback endpoint for federated mode. Handles the redirect from the upstream IdP.
+
+**Note:** This endpoint is only used in federated mode and is not called directly by clients.
+
+**Query Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `code` | Authorization code from upstream IdP |
+| `state` | State parameter to correlate with original request |
+| `error` | Error code if authentication failed |
+| `error_description` | Human-readable error description |
+
+**Response:** Redirects to the original client's `redirect_uri` with either an authorization code or error.
+
 ### POST /oauth/register
 
 Dynamic client registration (RFC 7591). Only available when `allow_dynamic_registration: true`.

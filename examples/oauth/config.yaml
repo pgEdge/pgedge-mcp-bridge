@@ -1,147 +1,272 @@
-# MCP HTTP Bridge - OAuth Authentication Configuration
-# This configuration demonstrates OAuth/OIDC authentication for the bridge.
+# MCP HTTP Bridge - OAuth Configuration Examples
 #
-# OAuth authentication supports:
-# - OpenID Connect Discovery for automatic configuration
-# - JWKS (JSON Web Key Set) for token validation
-# - Custom claim validation
-# - Token introspection for opaque tokens
+# This file demonstrates OAuth configuration options:
+# 1. OAuth Token Validation (Resource Server) - validate tokens from external IdP
+# 2. OAuth Authorization Server (Built-in) - issue tokens with local user management
+# 3. OAuth Authorization Server (Federated) - issue tokens, delegate auth to upstream IdP
+#
+# Choose the configuration that matches your deployment scenario.
 
-# Mode of operation
+# ============================================================================
+# EXAMPLE 1: OAuth Token Validation (Resource Server)
+# ============================================================================
+# Use this when you have an external OAuth/OIDC provider and want to validate
+# tokens issued by that provider. The bridge acts as a resource server.
+#
+# mode: server
+#
+# server:
+#   listen: ":8443"
+#   read_timeout: 30s
+#   write_timeout: 30s
+#   idle_timeout: 120s
+#
+#   auth:
+#     type: oauth
+#     oauth:
+#       # OIDC Discovery - automatically fetches issuer, JWKS, etc.
+#       discovery_url: "https://auth.example.com"
+#
+#       # Or configure manually without discovery:
+#       # jwks_url: "https://auth.example.com/.well-known/jwks.json"
+#
+#       # Client credentials for token introspection (if using opaque tokens)
+#       # client_id: "mcp-bridge"
+#       # client_secret: "${OAUTH_CLIENT_SECRET}"
+#       # introspection_url: "https://auth.example.com/oauth/introspect"
+#
+#   mcp_server:
+#     command: "python"
+#     args: ["-m", "mcp_server"]
+#
+#   session:
+#     enabled: true
+#     timeout: 30m
+#
+# log:
+#   level: info
+#   format: json
+
+# ============================================================================
+# EXAMPLE 2: OAuth Authorization Server - Built-in Mode
+# ============================================================================
+# Use this for simple deployments where you want to manage users locally.
+# The bridge issues its own tokens and provides a login form for authentication.
+# This is useful when you don't have an external identity provider.
+
 mode: server
 
-# Server configuration
 server:
   listen: ":8443"
-  base_path: "/mcp"
   read_timeout: 30s
   write_timeout: 30s
   idle_timeout: 120s
 
-# Authentication configuration with OAuth
-auth:
-  # Authentication type: "oauth" for OAuth/OIDC
-  type: oauth
+  # OAuth Authorization Server Configuration
+  oauth_server:
+    # Enable the authorization server
+    enabled: true
 
-  # OAuth configuration
-  oauth:
-    # OpenID Connect Discovery URL
-    # The bridge will fetch configuration from:
-    # {discovery_url}/.well-known/openid-configuration
-    # This automatically configures issuer, JWKS URI, and supported algorithms
-    discovery_url: "https://auth.example.com"
+    # Issuer URL - must match the bridge's external URL
+    issuer: "https://mcp.example.com"
 
-    # Alternatively, configure manually without discovery:
-    # issuer: "https://auth.example.com"
-    # jwks_url: "https://auth.example.com/.well-known/jwks.json"
+    # Mode: "builtin" for local user management
+    mode: builtin
 
-    # Expected audience claim in the JWT
-    # This should match the audience your OAuth server issues tokens for
-    audience: "mcp-bridge-api"
+    # Token lifetimes
+    token_lifetime: 1h
+    refresh_token_lifetime: 24h
+    auth_code_lifetime: 10m
 
-    # Required scopes for access
-    # Tokens must have all listed scopes to be valid
-    required_scopes:
+    # JWT signing configuration
+    signing:
+      algorithm: RS256
+      key_file: "/etc/pgedge/jwt-private.pem"
+      key_id: "key-1"
+      # For development only - generates ephemeral key:
+      # generate_key: true
+
+    # Built-in user configuration
+    builtin:
+      # List of users who can authenticate
+      users:
+        - username: admin
+          # bcrypt hash of password - generate with:
+          # htpasswd -bnBC 10 "" 'password' | tr -d ':\n' | sed 's/$2y/$2a/'
+          password_hash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.Q7LYmMQ9cVj.lS8pKi"
+          scopes:
+            - "mcp:read"
+            - "mcp:write"
+            - "mcp:admin"
+
+        - username: readonly
+          # Or use environment variable for password (will be hashed at startup)
+          password_env: "MCP_READONLY_PASSWORD"
+          scopes:
+            - "mcp:read"
+
+      # Optional: Custom login page template
+      # login_template: "/etc/pgedge/login.html"
+
+    # Allowed redirect URIs - must include Claude's callback
+    allowed_redirect_uris:
+      - "https://claude.ai/api/mcp/auth_callback"
+      - "http://localhost:*/callback"  # For local development
+
+    # Scopes the server supports
+    scopes_supported:
       - "mcp:read"
       - "mcp:write"
+      - "mcp:admin"
 
-    # Claim mappings for extracting user information
-    # These claims are extracted from the JWT and made available to the MCP server
-    claims:
-      # Claim containing the user/subject identifier
-      subject_claim: "sub"
+    # Allow clients to register dynamically (OAuth 2.0 Dynamic Client Registration)
+    allow_dynamic_registration: true
 
-      # Claim containing user's email (optional)
-      email_claim: "email"
+  # MCP server to wrap
+  mcp_server:
+    command: "python"
+    args:
+      - "-m"
+      - "mcp_server"
+      - "--config"
+      - "/etc/mcp/server.json"
+    env:
+      MCP_LOG_LEVEL: "info"
+    graceful_shutdown_timeout: 5s
 
-      # Claim containing user's roles/groups (optional)
-      roles_claim: "roles"
+  # Session management
+  session:
+    enabled: true
+    timeout: 30m
+    max_sessions: 100
 
-    # Token validation options
-    validation:
-      # Allowed signing algorithms
-      # Restrict to specific algorithms for security
-      allowed_algorithms:
-        - "RS256"
-        - "RS384"
-        - "RS512"
-        - "ES256"
-        - "ES384"
-        - "ES512"
+  # CORS configuration for browser clients
+  cors:
+    enabled: true
+    allowed_origins:
+      - "https://claude.ai"
+      - "https://app.example.com"
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "DELETE"
+      - "OPTIONS"
+    allowed_headers:
+      - "Authorization"
+      - "Content-Type"
+      - "Mcp-Session-Id"
+    allow_credentials: true
+    max_age: 3600
 
-      # Clock skew tolerance for token expiration checks
-      clock_skew: 30s
-
-      # Require tokens to have an expiration claim
-      require_expiration: true
-
-      # Maximum token age (even if not expired)
-      # Set to 0 to disable
-      max_token_age: 1h
-
-    # JWKS caching configuration
-    jwks:
-      # How often to refresh the JWKS
-      refresh_interval: 1h
-
-      # Timeout for JWKS fetch requests
-      fetch_timeout: 10s
-
-      # Number of keys to cache
-      cache_size: 10
-
-    # Token introspection (for opaque tokens)
-    # Enable this if your OAuth server issues opaque tokens instead of JWTs
-    introspection:
-      # Enable token introspection
-      enabled: false
-
-      # Introspection endpoint URL
-      # endpoint: "https://auth.example.com/oauth/introspect"
-
-      # Client credentials for introspection requests
-      # client_id: "mcp-bridge"
-      # client_secret: "${OAUTH_CLIENT_SECRET}"
-
-# Session management
-session:
-  enabled: true
-  timeout: 30m
-  max_sessions: 100
-
-# MCP server configuration
-mcp:
-  command: "node"
-  args:
-    - "/opt/mcp-server/index.js"
-  env:
-    NODE_ENV: "production"
-  startup_timeout: 10s
-  shutdown_timeout: 5s
-
-# CORS configuration
-# Important: Configure allowed origins carefully with OAuth
-cors:
-  enabled: true
-  allowed_origins:
-    - "https://app.example.com"
-  allowed_methods:
-    - "GET"
-    - "POST"
-    - "OPTIONS"
-  allowed_headers:
-    - "Authorization"
-    - "Content-Type"
-    - "X-Session-ID"
-  allow_credentials: true
-  max_age: 3600
-
-# Logging configuration
-logging:
+# Logging
+log:
   level: info
   format: json
+  output: stderr
 
-# Health check
-health:
-  enabled: true
-  path: "/health"
+# ============================================================================
+# EXAMPLE 3: OAuth Authorization Server - Federated Mode
+# ============================================================================
+# Use this when you want to delegate authentication to an upstream IdP
+# (Google, Okta, Azure AD, etc.) but have the bridge issue its own tokens.
+# This is the recommended approach for production deployments.
+#
+# mode: server
+#
+# server:
+#   listen: ":8443"
+#   read_timeout: 30s
+#   write_timeout: 30s
+#   idle_timeout: 120s
+#
+#   oauth_server:
+#     enabled: true
+#     issuer: "https://mcp.example.com"
+#     mode: federated
+#
+#     token_lifetime: 1h
+#     refresh_token_lifetime: 24h
+#     auth_code_lifetime: 10m
+#
+#     signing:
+#       algorithm: RS256
+#       key_file: "/etc/pgedge/jwt-private.pem"
+#       key_id: "key-1"
+#
+#     # Federated authentication configuration
+#     federated:
+#       # Upstream Identity Provider (e.g., Google)
+#       upstream_issuer: "https://accounts.google.com"
+#
+#       # OAuth client credentials for upstream IdP
+#       # Register your application with the IdP to get these
+#       client_id: "${GOOGLE_CLIENT_ID}"
+#       client_secret_env: "GOOGLE_CLIENT_SECRET"
+#
+#       # Scopes to request from upstream
+#       scopes:
+#         - "openid"
+#         - "email"
+#         - "profile"
+#
+#       # Optional: Restrict to specific email domains
+#       allowed_domains:
+#         - "example.com"
+#         - "company.org"
+#
+#       # Default scopes granted to all authenticated users
+#       default_scopes:
+#         - "mcp:read"
+#
+#       # Admin users get additional scopes
+#       admin_users:
+#         - "admin@example.com"
+#         - "devops@example.com"
+#
+#       admin_scopes:
+#         - "mcp:write"
+#         - "mcp:admin"
+#
+#     allowed_redirect_uris:
+#       - "https://claude.ai/api/mcp/auth_callback"
+#
+#     scopes_supported:
+#       - "mcp:read"
+#       - "mcp:write"
+#       - "mcp:admin"
+#
+#     allow_dynamic_registration: true
+#
+#   mcp_server:
+#     command: "python"
+#     args: ["-m", "mcp_server"]
+#
+#   session:
+#     enabled: true
+#     timeout: 30m
+#
+#   cors:
+#     enabled: true
+#     allowed_origins:
+#       - "https://claude.ai"
+#
+# log:
+#   level: info
+#   format: json
+
+# ---
+# JWT Key Generation:
+#
+# Generate RSA private key for JWT signing:
+#   openssl genrsa -out jwt-private.pem 2048
+#
+# Generate EC private key (ES256):
+#   openssl ecparam -genkey -name prime256v1 -out jwt-private.pem
+#
+# Password Hash Generation:
+#
+# Generate bcrypt hash for built-in users:
+#   htpasswd -bnBC 10 "" 'your-password' | tr -d ':\n' | sed 's/$2y/$2a/'
+#
+# Or using Python:
+#   python -c "import bcrypt; print(bcrypt.hashpw(b'your-password', bcrypt.gensalt()).decode())"

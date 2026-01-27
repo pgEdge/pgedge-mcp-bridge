@@ -821,3 +821,312 @@ func TestServer_New_Disabled(t *testing.T) {
 		t.Error("expected nil server when disabled")
 	}
 }
+
+// ===========================================================================
+// Federated Mode Tests
+// ===========================================================================
+
+func TestServer_New_FederatedMode(t *testing.T) {
+	logger, _ := logging.NewLogger(config.LogConfig{Level: "error", Format: "text", Output: "stderr"})
+
+	// Set up environment variable for client secret
+	t.Setenv("TEST_CLIENT_SECRET", "test-secret-value")
+
+	cfg := &config.OAuthServerConfig{
+		Enabled:              true,
+		Issuer:               "https://mcp.example.com",
+		Mode:                 "federated",
+		TokenLifetime:        time.Hour,
+		RefreshTokenLifetime: 24 * time.Hour,
+		AuthCodeLifetime:     10 * time.Minute,
+		Signing: &config.SigningConfig{
+			Algorithm:   "RS256",
+			GenerateKey: true,
+		},
+		Federated: &config.FederatedAuthConfig{
+			UpstreamIssuer:  "https://accounts.google.com",
+			ClientID:        "test-client-id",
+			ClientSecretEnv: "TEST_CLIENT_SECRET",
+			Scopes:          []string{"openid", "email", "profile"},
+			DefaultScopes:   []string{"mcp:read"},
+			AdminUsers:      []string{"admin@example.com"},
+			AdminScopes:     []string{"mcp:read", "mcp:write"},
+		},
+		AllowedRedirectURIs: []string{"https://claude.ai/api/mcp/auth_callback"},
+		ScopesSupported:     []string{"mcp:read", "mcp:write"},
+	}
+
+	server, err := New(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create federated server: %v", err)
+	}
+	defer server.Close()
+
+	if server == nil {
+		t.Fatal("expected non-nil server")
+	}
+
+	if server.mode != "federated" {
+		t.Errorf("expected mode 'federated', got %s", server.mode)
+	}
+
+	// Verify metadata is built correctly
+	metadata := server.Metadata()
+	if metadata.Issuer != "https://mcp.example.com" {
+		t.Errorf("expected issuer 'https://mcp.example.com', got %s", metadata.Issuer)
+	}
+}
+
+func TestServer_New_FederatedMode_MissingConfig(t *testing.T) {
+	logger, _ := logging.NewLogger(config.LogConfig{Level: "error", Format: "text", Output: "stderr"})
+
+	cfg := &config.OAuthServerConfig{
+		Enabled: true,
+		Issuer:  "https://mcp.example.com",
+		Mode:    "federated",
+		Signing: &config.SigningConfig{
+			Algorithm:   "RS256",
+			GenerateKey: true,
+		},
+		// Missing Federated config
+	}
+
+	_, err := New(cfg, logger)
+	if err == nil {
+		t.Error("expected error when federated config is missing")
+	}
+}
+
+func TestServer_New_FederatedMode_MissingSecret(t *testing.T) {
+	logger, _ := logging.NewLogger(config.LogConfig{Level: "error", Format: "text", Output: "stderr"})
+
+	cfg := &config.OAuthServerConfig{
+		Enabled: true,
+		Issuer:  "https://mcp.example.com",
+		Mode:    "federated",
+		Signing: &config.SigningConfig{
+			Algorithm:   "RS256",
+			GenerateKey: true,
+		},
+		Federated: &config.FederatedAuthConfig{
+			UpstreamIssuer: "https://accounts.google.com",
+			ClientID:       "test-client-id",
+			// Missing client secret
+		},
+	}
+
+	_, err := New(cfg, logger)
+	if err == nil {
+		t.Error("expected error when client secret is missing")
+	}
+}
+
+func TestFederatedAuthenticator_DomainFiltering(t *testing.T) {
+	t.Setenv("TEST_SECRET", "secret")
+
+	auth, err := NewFederatedAuthenticator(&config.FederatedAuthConfig{
+		UpstreamIssuer:  "https://accounts.google.com",
+		ClientID:        "test-client",
+		ClientSecretEnv: "TEST_SECRET",
+		AllowedDomains:  []string{"example.com", "Example.ORG"},
+	})
+	if err != nil {
+		t.Fatalf("failed to create authenticator: %v", err)
+	}
+
+	tests := []struct {
+		email   string
+		allowed bool
+	}{
+		{"user@example.com", true},
+		{"user@EXAMPLE.COM", true},
+		{"user@example.org", true},
+		{"user@other.com", false},
+		{"user@example.com.evil.com", false},
+		{"invalid-email", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.email, func(t *testing.T) {
+			result := auth.isAllowedDomain(tt.email)
+			if result != tt.allowed {
+				t.Errorf("isAllowedDomain(%q) = %v, want %v", tt.email, result, tt.allowed)
+			}
+		})
+	}
+}
+
+func TestFederatedAuthenticator_ScopeDetermination(t *testing.T) {
+	t.Setenv("TEST_SECRET", "secret")
+
+	auth, err := NewFederatedAuthenticator(&config.FederatedAuthConfig{
+		UpstreamIssuer:  "https://accounts.google.com",
+		ClientID:        "test-client",
+		ClientSecretEnv: "TEST_SECRET",
+		DefaultScopes:   []string{"mcp:read"},
+		AdminUsers:      []string{"admin@example.com", "sub-123"},
+		AdminScopes:     []string{"mcp:write", "mcp:admin"},
+	})
+	if err != nil {
+		t.Fatalf("failed to create authenticator: %v", err)
+	}
+
+	tests := []struct {
+		name           string
+		claims         *IDTokenClaims
+		expectedScopes []string
+	}{
+		{
+			name:           "regular user",
+			claims:         &IDTokenClaims{Subject: "user-1", Email: "user@example.com"},
+			expectedScopes: []string{"mcp:read"},
+		},
+		{
+			name:           "admin by email",
+			claims:         &IDTokenClaims{Subject: "user-2", Email: "admin@example.com"},
+			expectedScopes: []string{"mcp:read", "mcp:write", "mcp:admin"},
+		},
+		{
+			name:           "admin by subject",
+			claims:         &IDTokenClaims{Subject: "sub-123", Email: "other@example.com"},
+			expectedScopes: []string{"mcp:read", "mcp:write", "mcp:admin"},
+		},
+		{
+			name:           "user without email",
+			claims:         &IDTokenClaims{Subject: "user-3"},
+			expectedScopes: []string{"mcp:read"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scopes := auth.determineScopes(tt.claims)
+			if len(scopes) != len(tt.expectedScopes) {
+				t.Errorf("got %d scopes, want %d: %v", len(scopes), len(tt.expectedScopes), scopes)
+				return
+			}
+			for i, expected := range tt.expectedScopes {
+				if scopes[i] != expected {
+					t.Errorf("scope[%d] = %s, want %s", i, scopes[i], expected)
+				}
+			}
+		})
+	}
+}
+
+func TestFederatedAuthorizeHandler_RequestValidation(t *testing.T) {
+	t.Setenv("TEST_SECRET", "secret")
+
+	federatedAuth, err := NewFederatedAuthenticator(&config.FederatedAuthConfig{
+		UpstreamIssuer:  "https://accounts.google.com",
+		ClientID:        "test-client",
+		ClientSecretEnv: "TEST_SECRET",
+	})
+	if err != nil {
+		t.Fatalf("failed to create federated auth: %v", err)
+	}
+
+	storage := NewMemoryStorage(5 * time.Minute)
+	handler := NewFederatedAuthorizeHandler(
+		storage,
+		federatedAuth,
+		[]string{"https://claude.ai/callback"},
+		10*time.Minute,
+		[]string{"mcp:read"},
+		"https://mcp.example.com",
+	)
+	defer handler.Close()
+
+	tests := []struct {
+		name        string
+		query       string
+		expectError bool
+	}{
+		{
+			name:        "valid request",
+			query:       "?response_type=code&client_id=test&redirect_uri=https://claude.ai/callback&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256",
+			expectError: false,
+		},
+		{
+			name:        "missing response_type",
+			query:       "?client_id=test&redirect_uri=https://claude.ai/callback&code_challenge=abc&code_challenge_method=S256",
+			expectError: true,
+		},
+		{
+			name:        "invalid response_type",
+			query:       "?response_type=token&client_id=test&redirect_uri=https://claude.ai/callback&code_challenge=abc&code_challenge_method=S256",
+			expectError: true,
+		},
+		{
+			name:        "missing client_id",
+			query:       "?response_type=code&redirect_uri=https://claude.ai/callback&code_challenge=abc&code_challenge_method=S256",
+			expectError: true,
+		},
+		{
+			name:        "disallowed redirect_uri",
+			query:       "?response_type=code&client_id=test&redirect_uri=https://evil.com/callback&code_challenge=abc&code_challenge_method=S256",
+			expectError: true,
+		},
+		{
+			name:        "missing code_challenge",
+			query:       "?response_type=code&client_id=test&redirect_uri=https://claude.ai/callback",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/oauth/authorize"+tt.query, nil)
+			_, oauthErr := handler.parseAndValidateRequest(req)
+
+			if tt.expectError && oauthErr == nil {
+				t.Error("expected OAuth error, got nil")
+			}
+			if !tt.expectError && oauthErr != nil {
+				t.Errorf("unexpected OAuth error: %v", oauthErr)
+			}
+		})
+	}
+}
+
+func TestIDTokenClaims_GetAudience(t *testing.T) {
+	tests := []struct {
+		name     string
+		audience any
+		expected []string
+	}{
+		{
+			name:     "string audience",
+			audience: "client-1",
+			expected: []string{"client-1"},
+		},
+		{
+			name:     "array audience",
+			audience: []interface{}{"client-1", "client-2"},
+			expected: []string{"client-1", "client-2"},
+		},
+		{
+			name:     "nil audience",
+			audience: nil,
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims := &IDTokenClaims{Audience: tt.audience}
+			result := claims.GetAudience()
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("GetAudience() returned %d items, want %d", len(result), len(tt.expected))
+				return
+			}
+			for i := range result {
+				if result[i] != tt.expected[i] {
+					t.Errorf("GetAudience()[%d] = %s, want %s", i, result[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}

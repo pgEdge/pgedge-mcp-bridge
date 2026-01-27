@@ -12,77 +12,58 @@ mode: client
 # Client configuration (required for client mode)
 client:
   # URL of the remote MCP HTTP server
-  # Should include the base path configured on the server
-  url: "https://example.com/mcp"
+  url: "https://mcp.example.com/mcp"
 
   # HTTP timeout for requests (Go duration format)
   timeout: 30s
 
-  # Connection timeout for establishing connections
-  connect_timeout: 10s
+  # Authentication configuration
+  auth:
+    # Authentication type: "none", "bearer", or "oauth"
+    type: bearer
 
-  # Keep-alive interval for the SSE connection
-  keepalive_interval: 30s
+    # Bearer token configuration
+    bearer:
+      # Token to use for authentication
+      # Use environment variable substitution for security:
+      # The ${VAR} syntax reads from environment variables
+      token: "${MCP_AUTH_TOKEN}"
 
-  # Maximum response size (prevents memory exhaustion)
-  max_response_size: 10485760  # 10 MB
+  # TLS configuration for secure connections
+  tls:
+    # Path to custom CA certificate file
+    # Use this if the server uses a private CA
+    # ca_cert: "/path/to/ca.crt"
 
-# Authentication configuration
-auth:
-  # Authentication type: "none", "bearer", or "oauth"
-  type: bearer
+    # Client certificate for mTLS authentication
+    # cert_file: "/path/to/client.crt"
+    # key_file: "/path/to/client.key"
 
-  # Bearer token configuration
-  bearer:
-    # Token to use for authentication
-    # Use environment variable substitution for security:
-    # The ${VAR} syntax reads from environment variables
-    token: "${MCP_AUTH_TOKEN}"
+    # Skip TLS certificate verification (NOT recommended for production)
+    insecure_skip_verify: false
 
-# Retry configuration for resilient connections
-retry:
-  # Enable automatic retry on connection failures
-  enabled: true
+    # Server name for TLS verification (optional, defaults to host from URL)
+    # server_name: "mcp.example.com"
 
-  # Maximum number of retry attempts (0 for infinite)
-  max_attempts: 5
+  # Retry configuration for resilient connections
+  retry:
+    # Enable automatic retry on connection failures
+    enabled: true
 
-  # Initial delay between retries
-  initial_delay: 1s
+    # Maximum number of retry attempts
+    max_retries: 5
 
-  # Maximum delay between retries (with exponential backoff)
-  max_delay: 30s
+    # Initial delay between retries
+    initial_delay: 1s
 
-  # Multiplier for exponential backoff
-  multiplier: 2.0
+    # Maximum delay between retries (with exponential backoff)
+    max_delay: 30s
 
-  # Add random jitter to prevent thundering herd
-  jitter: true
-
-# Session configuration
-session:
-  # Enable session support for stateful connections
-  enabled: true
-
-  # Session ID to use (optional)
-  # If not specified, a new session ID is generated
-  # session_id: "my-persistent-session"
-
-# TLS configuration for secure connections
-tls:
-  # Skip TLS certificate verification (NOT recommended for production)
-  insecure_skip_verify: false
-
-  # Path to custom CA certificate file
-  # Use this if the server uses a private CA
-  # ca_cert: "/path/to/ca.crt"
-
-  # Client certificate for mTLS authentication
-  # cert: "/path/to/client.crt"
-  # key: "/path/to/client.key"
+    # Multiplier for exponential backoff
+    multiplier: 2.0
 
 # Logging configuration
-logging:
+log:
   # Log level: "debug", "info", "warn", "error"
   # In client mode, logs are written to stderr to not interfere with stdio
   level: info
@@ -90,10 +71,5 @@ logging:
   # Log format: "json" or "text"
   format: text
 
-# Stdio configuration
-stdio:
-  # Buffer size for stdin/stdout (bytes)
-  buffer_size: 65536
-
-  # Read timeout for stdin (0 for no timeout)
-  read_timeout: 0s
+  # Output: "stderr", "stdout", or a file path
+  output: stderr

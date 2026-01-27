@@ -22,14 +22,17 @@ import (
 
 // Server is the OAuth 2.0 Authorization Server.
 type Server struct {
-	cfg              *config.OAuthServerConfig
-	storage          Storage
-	tokenIssuer      *TokenIssuer
-	authenticator    UserAuthenticator
-	metadata         *Metadata
-	authorizeHandler *AuthorizeHandler
-	tokenHandler     *TokenHandler
-	logger           *logging.Logger
+	cfg         *config.OAuthServerConfig
+	storage     Storage
+	tokenIssuer *TokenIssuer
+	metadata    *Metadata
+	logger      *logging.Logger
+
+	// Mode-specific handlers
+	mode                     string
+	builtinAuthorizeHandler  *AuthorizeHandler
+	federatedAuthorizeHandler *FederatedAuthorizeHandler
+	tokenHandler             *TokenHandler
 }
 
 // New creates a new OAuth authorization server.
@@ -61,45 +64,10 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 		return nil, fmt.Errorf("creating token issuer: %w", err)
 	}
 
-	// Create authenticator based on mode
-	var authenticator UserAuthenticator
-	switch cfg.Mode {
-	case "builtin":
-		if cfg.BuiltIn == nil {
-			return nil, fmt.Errorf("builtin configuration required for builtin mode")
-		}
-		authenticator, err = NewBuiltInAuthenticator(cfg.BuiltIn)
-		if err != nil {
-			return nil, fmt.Errorf("creating builtin authenticator: %w", err)
-		}
-	case "federated":
-		// TODO: Implement federated authenticator
-		return nil, fmt.Errorf("federated mode not yet implemented")
-	default:
-		return nil, fmt.Errorf("unknown mode: %s", cfg.Mode)
-	}
-
 	// Build metadata
 	metadata := BuildMetadata(cfg.Issuer, cfg.ScopesSupported, cfg.AllowDynamicRegistration)
 
-	// Create authorize handler
-	var loginTemplate string
-	if cfg.BuiltIn != nil {
-		loginTemplate = cfg.BuiltIn.LoginTemplate
-	}
-	authorizeHandler, err := NewAuthorizeHandler(
-		storage,
-		authenticator,
-		cfg.AllowedRedirectURIs,
-		cfg.AuthCodeLifetime,
-		cfg.ScopesSupported,
-		loginTemplate,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating authorize handler: %w", err)
-	}
-
-	// Create token handler
+	// Create token handler (shared between modes)
 	tokenHandler := NewTokenHandler(
 		storage,
 		tokenIssuer,
@@ -108,16 +76,66 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 		cfg.RefreshTokenLifetime,
 	)
 
-	return &Server{
-		cfg:              cfg,
-		storage:          storage,
-		tokenIssuer:      tokenIssuer,
-		authenticator:    authenticator,
-		metadata:         metadata,
-		authorizeHandler: authorizeHandler,
-		tokenHandler:     tokenHandler,
-		logger:           logger,
-	}, nil
+	server := &Server{
+		cfg:          cfg,
+		storage:      storage,
+		tokenIssuer:  tokenIssuer,
+		metadata:     metadata,
+		tokenHandler: tokenHandler,
+		logger:       logger,
+		mode:         cfg.Mode,
+	}
+
+	// Create mode-specific handlers
+	switch cfg.Mode {
+	case "builtin":
+		if cfg.BuiltIn == nil {
+			return nil, fmt.Errorf("builtin configuration required for builtin mode")
+		}
+		authenticator, err := NewBuiltInAuthenticator(cfg.BuiltIn)
+		if err != nil {
+			return nil, fmt.Errorf("creating builtin authenticator: %w", err)
+		}
+
+		var loginTemplate string
+		if cfg.BuiltIn != nil {
+			loginTemplate = cfg.BuiltIn.LoginTemplate
+		}
+		server.builtinAuthorizeHandler, err = NewAuthorizeHandler(
+			storage,
+			authenticator,
+			cfg.AllowedRedirectURIs,
+			cfg.AuthCodeLifetime,
+			cfg.ScopesSupported,
+			loginTemplate,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("creating authorize handler: %w", err)
+		}
+
+	case "federated":
+		if cfg.Federated == nil {
+			return nil, fmt.Errorf("federated configuration required for federated mode")
+		}
+		federatedAuth, err := NewFederatedAuthenticator(cfg.Federated)
+		if err != nil {
+			return nil, fmt.Errorf("creating federated authenticator: %w", err)
+		}
+
+		server.federatedAuthorizeHandler = NewFederatedAuthorizeHandler(
+			storage,
+			federatedAuth,
+			cfg.AllowedRedirectURIs,
+			cfg.AuthCodeLifetime,
+			cfg.ScopesSupported,
+			cfg.Issuer,
+		)
+
+	default:
+		return nil, fmt.Errorf("unknown mode: %s (must be 'builtin' or 'federated')", cfg.Mode)
+	}
+
+	return server, nil
 }
 
 // RegisterRoutes registers OAuth endpoints on the given mux.
@@ -128,9 +146,16 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	// JWKS endpoint
 	mux.HandleFunc("GET /oauth/jwks", s.handleJWKS)
 
-	// Authorization endpoint
-	mux.Handle("GET /oauth/authorize", s.authorizeHandler)
-	mux.Handle("POST /oauth/authorize", s.authorizeHandler)
+	// Authorization endpoint - handler depends on mode
+	switch s.mode {
+	case "builtin":
+		mux.Handle("GET /oauth/authorize", s.builtinAuthorizeHandler)
+		mux.Handle("POST /oauth/authorize", s.builtinAuthorizeHandler)
+	case "federated":
+		mux.Handle("GET /oauth/authorize", s.federatedAuthorizeHandler)
+		// Callback endpoint for upstream IdP redirect
+		mux.HandleFunc("GET /oauth/callback", s.federatedAuthorizeHandler.HandleCallback)
+	}
 
 	// Token endpoint
 	mux.Handle("POST /oauth/token", s.tokenHandler)
@@ -250,6 +275,9 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 // Close releases resources used by the server.
 func (s *Server) Close() error {
+	if s.federatedAuthorizeHandler != nil {
+		s.federatedAuthorizeHandler.Close()
+	}
 	if s.storage != nil {
 		return s.storage.Close()
 	}
