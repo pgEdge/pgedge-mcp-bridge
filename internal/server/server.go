@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/auth"
+	"github.com/pgEdge/pgedge-mcp-bridge/internal/authserver"
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/config"
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/cors"
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/logging"
@@ -49,6 +50,9 @@ type Server struct {
 
 	// authMiddleware is the authentication middleware.
 	authMiddleware *auth.AuthMiddleware
+
+	// oauthServer is the OAuth 2.0 authorization server (optional).
+	oauthServer *authserver.Server
 
 	// corsHandler handles CORS for the HTTP server.
 	corsHandler *cors.Handler
@@ -133,6 +137,19 @@ func NewServer(cfg *config.ServerConfig, logger *logging.Logger) (*Server, error
 		logger.Info("CORS enabled for server")
 	}
 
+	// Initialize OAuth server if enabled
+	if cfg.OAuthServer != nil && cfg.OAuthServer.Enabled {
+		oauthServer, err := authserver.New(cfg.OAuthServer, logger)
+		if err != nil {
+			return nil, fmt.Errorf("configuring OAuth server: %w", err)
+		}
+		s.oauthServer = oauthServer
+		logger.Info("OAuth authorization server enabled",
+			"issuer", cfg.OAuthServer.Issuer,
+			"mode", cfg.OAuthServer.Mode,
+		)
+	}
+
 	// Initialize authentication
 	if cfg.Auth != nil && cfg.Auth.Type != "" && cfg.Auth.Type != "none" {
 		authenticator, err := auth.NewAuthenticator(cfg.Auth, true)
@@ -140,9 +157,23 @@ func NewServer(cfg *config.ServerConfig, logger *logging.Logger) (*Server, error
 			return nil, fmt.Errorf("configuring authentication: %w", err)
 		}
 		s.auth = authenticator
+
+		// Build skip paths for auth middleware
+		skipPaths := []string{"/health", "/ready"}
+		if s.oauthServer != nil {
+			// Skip OAuth endpoints from auth middleware
+			skipPaths = append(skipPaths,
+				"/.well-known/oauth-authorization-server",
+				"/oauth/jwks",
+				"/oauth/authorize",
+				"/oauth/token",
+				"/oauth/register",
+			)
+		}
+
 		s.authMiddleware = auth.NewAuthMiddleware(
 			authenticator,
-			auth.WithSkipPaths("/health", "/ready"),
+			auth.WithSkipPaths(skipPaths...),
 			auth.WithRealm("MCP Bridge"),
 		)
 		logger.Info("authentication enabled for server", "type", cfg.Auth.Type)
@@ -192,6 +223,11 @@ func (s *Server) buildRouter() *http.ServeMux {
 	// Health check endpoints
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /ready", s.handleReady)
+
+	// OAuth server endpoints
+	if s.oauthServer != nil {
+		s.oauthServer.RegisterRoutes(mux)
+	}
 
 	return mux
 }
@@ -318,6 +354,13 @@ func (s *Server) Stop(ctx context.Context) error {
 		if s.auth != nil {
 			if err := s.auth.Close(); err != nil {
 				s.logger.Error("error closing authenticator", "error", err)
+			}
+		}
+
+		// Close the OAuth server
+		if s.oauthServer != nil {
+			if err := s.oauthServer.Close(); err != nil {
+				s.logger.Error("error closing OAuth server", "error", err)
 			}
 		}
 

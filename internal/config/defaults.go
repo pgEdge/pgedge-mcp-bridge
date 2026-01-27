@@ -36,6 +36,13 @@ const (
 	DefaultLogOutput         = "stderr"
 	DefaultTLSMinVersion     = "1.2"
 	DefaultCORSMaxAge        = 86400
+
+	// OAuth Server defaults
+	DefaultOAuthTokenLifetime        = 1 * time.Hour
+	DefaultOAuthRefreshTokenLifetime = 24 * time.Hour
+	DefaultOAuthAuthCodeLifetime     = 10 * time.Minute
+	DefaultOAuthSigningAlgorithm     = "RS256"
+	DefaultOAuthServerMode           = "builtin"
 )
 
 // DefaultCORSMethods is the default list of allowed HTTP methods
@@ -43,6 +50,15 @@ var DefaultCORSMethods = []string{"GET", "POST", "DELETE", "OPTIONS"}
 
 // DefaultCORSHeaders is the default list of allowed headers
 var DefaultCORSHeaders = []string{"Authorization", "Content-Type", "Mcp-Session-Id", "Accept"}
+
+// DefaultOAuthScopes is the default list of supported OAuth scopes
+var DefaultOAuthScopes = []string{"mcp:read", "mcp:write"}
+
+// DefaultOAuthRedirectURIs is the default list of allowed redirect URIs for Claude Desktop
+var DefaultOAuthRedirectURIs = []string{
+	"https://claude.ai/api/mcp/auth_callback",
+	"https://claude.com/api/mcp/auth_callback",
+}
 
 // applyDefaults sets default values for unset configuration options
 func applyDefaults(cfg *Config) {
@@ -125,6 +141,35 @@ func applyServerDefaults(s *ServerConfig) {
 		if s.CORS.MaxAge == 0 {
 			s.CORS.MaxAge = DefaultCORSMaxAge
 		}
+	}
+
+	// OAuth Server defaults
+	if s.OAuthServer != nil && s.OAuthServer.Enabled {
+		applyOAuthServerDefaults(s.OAuthServer)
+	}
+}
+
+func applyOAuthServerDefaults(o *OAuthServerConfig) {
+	if o.Mode == "" {
+		o.Mode = DefaultOAuthServerMode
+	}
+	if o.TokenLifetime == 0 {
+		o.TokenLifetime = DefaultOAuthTokenLifetime
+	}
+	if o.RefreshTokenLifetime == 0 {
+		o.RefreshTokenLifetime = DefaultOAuthRefreshTokenLifetime
+	}
+	if o.AuthCodeLifetime == 0 {
+		o.AuthCodeLifetime = DefaultOAuthAuthCodeLifetime
+	}
+	if len(o.ScopesSupported) == 0 {
+		o.ScopesSupported = DefaultOAuthScopes
+	}
+	if len(o.AllowedRedirectURIs) == 0 {
+		o.AllowedRedirectURIs = DefaultOAuthRedirectURIs
+	}
+	if o.Signing != nil && o.Signing.Algorithm == "" {
+		o.Signing.Algorithm = DefaultOAuthSigningAlgorithm
 	}
 }
 

@@ -1417,57 +1417,14 @@ client:
 // FindConfigFile Tests
 // ===========================================================================
 
-func TestFindConfigFile_InCurrentDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
-	if err := os.WriteFile(configPath, []byte("mode: server\n"), 0644); err != nil {
-		t.Fatalf("failed to write test config file: %v", err)
-	}
-
-	// Change to the temp directory
-	oldWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change to temp directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(oldWd); err != nil {
-			t.Errorf("failed to restore working directory: %v", err)
-		}
-	}()
-
-	found, err := FindConfigFile()
-	if err != nil {
-		t.Fatalf("expected to find config file, got error: %v", err)
-	}
-
-	if found != "config.yaml" {
-		t.Errorf("expected 'config.yaml', got '%s'", found)
-	}
-}
-
 func TestFindConfigFile_NotFound(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Change to the temp directory (which has no config.yaml)
-	oldWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change to temp directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(oldWd); err != nil {
-			t.Errorf("failed to restore working directory: %v", err)
-		}
-	}()
-
-	_, err = FindConfigFile()
+	// FindConfigFile searches /etc/pgedge and executable directory.
+	// In a test environment, neither should have config.yaml,
+	// so we expect an error.
+	_, err := FindConfigFile()
 	if err == nil {
-		t.Fatal("expected error when config file not found")
+		// Config might exist in /etc/pgedge or executable dir on some systems
+		t.Skip("config.yaml found in standard location, skipping not-found test")
 	}
 
 	if !strings.Contains(err.Error(), "not found") {

@@ -72,6 +72,13 @@ func validateServer(s *ServerConfig) error {
 		}
 	}
 
+	// Validate OAuth Server
+	if s.OAuthServer != nil && s.OAuthServer.Enabled {
+		if err := validateOAuthServer(s.OAuthServer); err != nil {
+			return fmt.Errorf("server.oauth_server: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -250,6 +257,143 @@ func validateCORS(c *CORSConfig) error {
 		if origin != "*" && !strings.HasPrefix(origin, "http://") && !strings.HasPrefix(origin, "https://") {
 			return fmt.Errorf("invalid origin: %s (must be '*' or start with http:// or https://)", origin)
 		}
+	}
+
+	return nil
+}
+
+func validateOAuthServer(o *OAuthServerConfig) error {
+	// Issuer is required
+	if o.Issuer == "" {
+		return errors.New("issuer is required")
+	}
+
+	// Validate issuer is a valid URL
+	if _, err := url.Parse(o.Issuer); err != nil {
+		return fmt.Errorf("issuer is not a valid URL: %w", err)
+	}
+
+	// Validate mode
+	validModes := map[string]bool{"builtin": true, "federated": true}
+	if !validModes[o.Mode] {
+		return fmt.Errorf("invalid mode: %s (must be 'builtin' or 'federated')", o.Mode)
+	}
+
+	// Validate signing configuration
+	if o.Signing == nil {
+		return errors.New("signing configuration is required")
+	}
+	if err := validateSigning(o.Signing); err != nil {
+		return fmt.Errorf("signing: %w", err)
+	}
+
+	// Validate mode-specific configuration
+	switch o.Mode {
+	case "builtin":
+		if o.BuiltIn == nil {
+			return errors.New("builtin configuration is required when mode is 'builtin'")
+		}
+		if err := validateBuiltInAuth(o.BuiltIn); err != nil {
+			return fmt.Errorf("builtin: %w", err)
+		}
+	case "federated":
+		if o.Federated == nil {
+			return errors.New("federated configuration is required when mode is 'federated'")
+		}
+		if err := validateFederatedAuth(o.Federated); err != nil {
+			return fmt.Errorf("federated: %w", err)
+		}
+	}
+
+	// Validate redirect URIs
+	for _, uri := range o.AllowedRedirectURIs {
+		if _, err := url.Parse(uri); err != nil {
+			return fmt.Errorf("invalid redirect URI %s: %w", uri, err)
+		}
+	}
+
+	return nil
+}
+
+func validateSigning(s *SigningConfig) error {
+	validAlgorithms := map[string]bool{"RS256": true, "RS384": true, "RS512": true, "ES256": true, "ES384": true, "ES512": true}
+	if !validAlgorithms[s.Algorithm] {
+		return fmt.Errorf("invalid algorithm: %s (must be RS256, RS384, RS512, ES256, ES384, or ES512)", s.Algorithm)
+	}
+
+	// Either key_file or generate_key must be specified
+	if s.KeyFile == "" && !s.GenerateKey {
+		return errors.New("either key_file or generate_key must be specified")
+	}
+
+	// Check key file exists if specified
+	if s.KeyFile != "" {
+		if _, err := os.Stat(s.KeyFile); os.IsNotExist(err) {
+			return fmt.Errorf("key_file does not exist: %s", s.KeyFile)
+		}
+	}
+
+	return nil
+}
+
+func validateBuiltInAuth(b *BuiltInAuthConfig) error {
+	if len(b.Users) == 0 {
+		return errors.New("at least one user is required")
+	}
+
+	usernames := make(map[string]bool)
+	for i, user := range b.Users {
+		if user.Username == "" {
+			return fmt.Errorf("users[%d]: username is required", i)
+		}
+		if usernames[user.Username] {
+			return fmt.Errorf("users[%d]: duplicate username: %s", i, user.Username)
+		}
+		usernames[user.Username] = true
+
+		// Either password_hash or password_env must be provided
+		if user.PasswordHash == "" && user.PasswordEnv == "" {
+			return fmt.Errorf("users[%d]: either password_hash or password_env is required", i)
+		}
+
+		// If password_env is specified, check it exists
+		if user.PasswordEnv != "" && os.Getenv(user.PasswordEnv) == "" {
+			return fmt.Errorf("users[%d]: environment variable %s is not set", i, user.PasswordEnv)
+		}
+	}
+
+	// Check login template exists if specified
+	if b.LoginTemplate != "" {
+		if _, err := os.Stat(b.LoginTemplate); os.IsNotExist(err) {
+			return fmt.Errorf("login_template does not exist: %s", b.LoginTemplate)
+		}
+	}
+
+	return nil
+}
+
+func validateFederatedAuth(f *FederatedAuthConfig) error {
+	if f.UpstreamIssuer == "" {
+		return errors.New("upstream_issuer is required")
+	}
+
+	// Validate upstream issuer is a valid URL
+	if _, err := url.Parse(f.UpstreamIssuer); err != nil {
+		return fmt.Errorf("upstream_issuer is not a valid URL: %w", err)
+	}
+
+	if f.ClientID == "" {
+		return errors.New("client_id is required")
+	}
+
+	// Client secret must be provided (either directly or via env var)
+	if f.ClientSecret == "" && f.ClientSecretEnv == "" {
+		return errors.New("either client_secret or client_secret_env is required")
+	}
+
+	// If client_secret_env is specified, check it exists
+	if f.ClientSecretEnv != "" && os.Getenv(f.ClientSecretEnv) == "" {
+		return fmt.Errorf("environment variable %s is not set", f.ClientSecretEnv)
 	}
 
 	return nil

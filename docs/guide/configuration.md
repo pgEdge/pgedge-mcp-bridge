@@ -4,7 +4,10 @@ This document provides a complete reference for all configuration options in the
 
 ## Configuration File
 
-The bridge reads configuration from a YAML file. By default, it looks for `config.yaml` in the current directory or the directory containing the executable.
+The bridge reads configuration from a YAML file. If not specified on the command line, it searches for `config.yaml` in:
+
+1. `/etc/pgedge/config.yaml`
+2. Directory containing the executable
 
 Specify a custom path with the `-c` flag:
 
@@ -40,7 +43,7 @@ mode: server
 
 ## Logging Configuration
 
-### logging.level
+### log.level
 
 Log level for output messages.
 
@@ -51,7 +54,7 @@ Log level for output messages.
 | `warn` | Warning messages |
 | `error` | Error messages only |
 
-### logging.format
+### log.format
 
 Output format for log messages.
 
@@ -60,7 +63,7 @@ Output format for log messages.
 | `text` | Human-readable text format |
 | `json` | Structured JSON format |
 
-### logging.output
+### log.output
 
 Log output destination.
 
@@ -71,7 +74,7 @@ Log output destination.
 | `/path/to/file` | Write to file |
 
 ```yaml
-logging:
+log:
   level: info
   format: json
   output: stderr
@@ -90,15 +93,6 @@ server:
   listen: ":8080"           # All interfaces, port 8080
   listen: "127.0.0.1:8080"  # Localhost only
   listen: "0.0.0.0:443"     # All interfaces, port 443
-```
-
-### server.base_path
-
-Base path for HTTP endpoints. Default: `/mcp`
-
-```yaml
-server:
-  base_path: "/api/v1/mcp"
 ```
 
 ### server.read_timeout
@@ -125,60 +119,55 @@ server:
 
 Configuration for the MCP subprocess. Required when `mode: server`.
 
-### mcp.command
+### mcp_server.command
 
 **Required.** Command to execute the MCP server.
 
-### mcp.args
+### mcp_server.args
 
 Arguments to pass to the command.
 
-### mcp.working_dir
+### mcp_server.dir
 
 Working directory for the subprocess.
 
-### mcp.env
+### mcp_server.env
 
 Environment variables for the subprocess.
 
 ```yaml
-mcp:
+mcp_server:
   command: "python"
   args:
     - "-m"
     - "mcp_server"
-  working_dir: "/opt/mcp-server"
+  dir: "/opt/mcp-server"
   env:
     PYTHONUNBUFFERED: "1"
     LOG_LEVEL: "info"
 ```
 
-### mcp.startup_timeout
-
-Maximum time to wait for the MCP server to start. Default: `10s`
-
-### mcp.shutdown_timeout
+### mcp_server.graceful_shutdown_timeout
 
 Maximum time to wait for graceful shutdown. Default: `5s`
 
-### mcp.restart_on_failure
+### mcp_server.restart_on_failure
 
 Automatically restart the subprocess if it exits unexpectedly. Default: `false`
 
-### mcp.max_restarts
+### mcp_server.max_restarts
 
 Maximum number of restart attempts. Default: `5`
 
-### mcp.restart_delay
+### mcp_server.restart_delay
 
 Delay between restart attempts. Default: `5s`
 
 ```yaml
-mcp:
+mcp_server:
   command: "python"
   args: ["-m", "mcp_server"]
-  startup_timeout: 10s
-  shutdown_timeout: 5s
+  graceful_shutdown_timeout: 5s
   restart_on_failure: true
   max_restarts: 5
   restart_delay: 5s
@@ -240,9 +229,9 @@ Retry settings for client mode.
 
 Enable automatic retry on failure. Default: `false`
 
-### retry.max_attempts
+### retry.max_retries
 
-Maximum retry attempts. `0` for infinite. Default: `3`
+Maximum retry attempts. Default: `3`
 
 ### retry.initial_delay
 
@@ -256,18 +245,13 @@ Maximum delay between retries. Default: `5s`
 
 Backoff multiplier. Default: `2.0`
 
-### retry.jitter
-
-Add random jitter to delays. Default: `true`
-
 ```yaml
 retry:
   enabled: true
-  max_attempts: 5
+  max_retries: 5
   initial_delay: 1s
   max_delay: 30s
   multiplier: 2.0
-  jitter: true
 ```
 
 ## Session Configuration
@@ -322,7 +306,7 @@ Authentication type.
 auth:
   type: bearer
   bearer:
-    tokens:
+    valid_tokens:
       - "token1"
       - "token2"
     validation_endpoint: "https://auth.example.com/validate"  # Optional
@@ -394,15 +378,10 @@ tls:
   enabled: true
   cert_file: "/path/to/server.crt"
   key_file: "/path/to/server.key"
-  client_ca_file: "/path/to/client-ca.crt"
+  client_ca: "/path/to/client-ca.crt"
   client_auth: "verify"  # none, request, require, verify
   min_version: "1.2"
   max_version: "1.3"
-  cipher_suites:
-    - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
-  curve_preferences:
-    - "X25519"
-    - "P-256"
 ```
 
 ### Client TLS
@@ -468,37 +447,144 @@ cors:
   max_age: 3600
 ```
 
-## Health Check Configuration
+## OAuth Authorization Server Configuration
 
-### health.enabled
+The bridge can act as an OAuth 2.0 Authorization Server to issue access tokens. This enables direct integration with clients like Claude Desktop that expect OAuth authentication.
 
-Enable health check endpoint. Default: `true`
+### oauth_server.enabled
 
-### health.path
+Enable the OAuth authorization server. Default: `false`
 
-Path for health check endpoint. Default: `/health`
+### oauth_server.issuer
+
+**Required when enabled.** The OAuth issuer URL (typically the bridge's external URL).
+
+### oauth_server.mode
+
+Authentication mode: `builtin` or `federated`. Default: `builtin`
+
+| Value | Description |
+|-------|-------------|
+| `builtin` | Local user management with bcrypt passwords |
+| `federated` | Delegate authentication to upstream IdP |
+
+### oauth_server.token_lifetime
+
+Access token validity duration. Default: `1h`
+
+### oauth_server.refresh_token_lifetime
+
+Refresh token validity duration. Default: `24h`
+
+### oauth_server.auth_code_lifetime
+
+Authorization code validity duration. Default: `10m`
+
+### oauth_server.allowed_redirect_uris
+
+List of allowed OAuth redirect URI patterns.
+
+### oauth_server.scopes_supported
+
+List of scopes this server supports.
+
+### oauth_server.allow_dynamic_registration
+
+Enable dynamic client registration endpoint (`/oauth/register`). Default: `false`
+
+### Built-in Mode Configuration
+
+For local user management:
 
 ```yaml
-health:
-  enabled: true
-  path: "/health"
+server:
+  oauth_server:
+    enabled: true
+    issuer: "https://mcp.example.com"
+    mode: builtin
+    token_lifetime: 1h
+    refresh_token_lifetime: 24h
+    signing:
+      algorithm: RS256
+      key_file: "/etc/pgedge/jwt-private.pem"
+    builtin:
+      users:
+        - username: admin
+          password_hash: "$2a$10$..."  # bcrypt hash
+          scopes: ["mcp:read", "mcp:write"]
+    allowed_redirect_uris:
+      - "https://claude.ai/api/mcp/auth_callback"
+    scopes_supported:
+      - "mcp:read"
+      - "mcp:write"
 ```
 
-## Stdio Configuration (Client Mode)
+#### oauth_server.signing
 
-### stdio.buffer_size
+JWT signing configuration:
 
-Buffer size for stdin/stdout in bytes. Default: `65536`
+| Field | Description |
+|-------|-------------|
+| `algorithm` | Signing algorithm: `RS256` or `ES256` |
+| `key_file` | Path to private key file (PEM format) |
+| `key_id` | Optional key ID for JWKS |
+| `generate_key` | Generate ephemeral key (dev mode only) |
 
-### stdio.read_timeout
+#### oauth_server.builtin.users
 
-Read timeout for stdin. `0` for no timeout. Default: `0s`
+List of users for built-in authentication:
+
+| Field | Description |
+|-------|-------------|
+| `username` | User's login name |
+| `password_hash` | bcrypt hash of password |
+| `password_env` | Environment variable containing plaintext password (hashed at runtime) |
+| `scopes` | List of scopes to grant this user |
+
+### Federated Mode Configuration
+
+For delegating to an upstream identity provider (Google, Okta, etc.):
 
 ```yaml
-stdio:
-  buffer_size: 65536
-  read_timeout: 0s
+server:
+  oauth_server:
+    enabled: true
+    issuer: "https://mcp.example.com"
+    mode: federated
+    token_lifetime: 1h
+    signing:
+      algorithm: RS256
+      key_file: "/etc/pgedge/jwt-private.pem"
+    federated:
+      upstream_issuer: "https://accounts.google.com"
+      client_id: "${GOOGLE_CLIENT_ID}"
+      client_secret_env: "GOOGLE_CLIENT_SECRET"
+      scopes: ["openid", "email", "profile"]
+      allowed_domains:
+        - "example.com"
+      default_scopes: ["mcp:read"]
+      admin_users:
+        - "admin@example.com"
+      admin_scopes: ["mcp:read", "mcp:write", "mcp:admin"]
+    allowed_redirect_uris:
+      - "https://claude.ai/api/mcp/auth_callback"
 ```
+
+#### oauth_server.federated
+
+Upstream IdP configuration:
+
+| Field | Description |
+|-------|-------------|
+| `upstream_issuer` | Upstream IdP's issuer URL |
+| `client_id` | Client ID registered with upstream |
+| `client_secret` | Client secret (or use `client_secret_env`) |
+| `client_secret_env` | Environment variable for client secret |
+| `scopes` | Scopes to request from upstream |
+| `allowed_domains` | Restrict authentication to specific email domains |
+| `default_scopes` | Scopes to grant all authenticated users |
+| `admin_users` | Users (by email/subject) to grant admin scopes |
+| `admin_scopes` | Additional scopes for admin users |
 
 ## Complete Examples
 
@@ -509,44 +595,91 @@ mode: server
 
 server:
   listen: ":8080"
-  base_path: "/mcp"
   read_timeout: 30s
   write_timeout: 60s
   idle_timeout: 120s
 
-mcp:
-  command: "python"
-  args: ["-m", "mcp_server"]
-  working_dir: "/opt/mcp-server"
-  env:
-    PYTHONUNBUFFERED: "1"
-  startup_timeout: 10s
-  shutdown_timeout: 5s
-  restart_on_failure: true
-  max_restarts: 5
+  mcp_server:
+    command: "python"
+    args: ["-m", "mcp_server"]
+    dir: "/opt/mcp-server"
+    env:
+      PYTHONUNBUFFERED: "1"
+    graceful_shutdown_timeout: 5s
+    restart_on_failure: true
+    max_restarts: 5
 
-auth:
-  type: bearer
-  bearer:
-    tokens:
-      - "${MCP_AUTH_TOKEN}"
+  auth:
+    type: bearer
+    bearer:
+      valid_tokens:
+        - "${MCP_AUTH_TOKEN}"
 
-session:
-  enabled: true
-  timeout: 30m
-  max_sessions: 100
+  session:
+    enabled: true
+    timeout: 30m
+    max_sessions: 100
 
-cors:
-  enabled: true
-  allowed_origins:
-    - "https://app.example.com"
+  cors:
+    enabled: true
+    allowed_origins:
+      - "https://app.example.com"
 
-logging:
+log:
   level: info
   format: json
+```
 
-health:
-  enabled: true
+### Server Mode with OAuth Authorization Server
+
+```yaml
+mode: server
+
+server:
+  listen: ":8443"
+  read_timeout: 30s
+  write_timeout: 60s
+  idle_timeout: 120s
+
+  tls:
+    enabled: true
+    cert_file: "/etc/pgedge/server.crt"
+    key_file: "/etc/pgedge/server.key"
+
+  mcp_server:
+    command: "python"
+    args: ["-m", "mcp_server"]
+    graceful_shutdown_timeout: 5s
+
+  oauth_server:
+    enabled: true
+    issuer: "https://mcp.example.com"
+    mode: builtin
+    token_lifetime: 1h
+    refresh_token_lifetime: 24h
+    signing:
+      algorithm: RS256
+      key_file: "/etc/pgedge/jwt-private.pem"
+    builtin:
+      users:
+        - username: admin
+          password_env: "ADMIN_PASSWORD"
+          scopes: ["mcp:read", "mcp:write"]
+    allowed_redirect_uris:
+      - "https://claude.ai/api/mcp/auth_callback"
+
+  auth:
+    type: oauth
+    oauth:
+      jwks_url: "https://mcp.example.com/oauth/jwks"
+
+  session:
+    enabled: true
+    timeout: 30m
+
+log:
+  level: info
+  format: json
 ```
 
 ### Client Mode
@@ -557,26 +690,22 @@ mode: client
 client:
   url: "https://mcp.example.com/mcp"
   timeout: 30s
-  connect_timeout: 10s
 
-auth:
-  type: bearer
-  bearer:
-    token: "${MCP_AUTH_TOKEN}"
+  auth:
+    type: bearer
+    bearer:
+      token: "${MCP_AUTH_TOKEN}"
 
-retry:
-  enabled: true
-  max_attempts: 5
-  initial_delay: 1s
-  max_delay: 30s
+  retry:
+    enabled: true
+    max_retries: 5
+    initial_delay: 1s
+    max_delay: 30s
 
-session:
-  enabled: true
+  tls:
+    ca_cert: "/etc/ssl/certs/ca-certificates.crt"
 
-tls:
-  ca_cert: "/etc/ssl/certs/ca-certificates.crt"
-
-logging:
+log:
   level: info
   format: text
 ```

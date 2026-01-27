@@ -4,8 +4,6 @@ HTTP API reference for the MCP Bridge in server mode.
 
 ## Endpoints
 
-All endpoints are relative to the configured `base_path` (default: `/mcp`).
-
 ## POST /mcp - Send Request
 
 Send a JSON-RPC 2.0 request to the MCP server.
@@ -202,6 +200,228 @@ No headers required. Authentication is not required for health checks.
 
 ```bash
 curl http://localhost:8080/health
+```
+
+## GET /ready - Readiness Check
+
+Check if the bridge is ready to serve requests (MCP subprocess is running).
+
+### Request
+
+No headers required. Authentication is not required for readiness checks.
+
+### Response
+
+**Ready (200 OK):**
+
+```json
+{
+  "status": "ready"
+}
+```
+
+**Not Ready (503 Service Unavailable):**
+
+```json
+{
+  "status": "not_ready",
+  "reason": "mcp_subprocess_not_running"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/ready
+```
+
+## OAuth Authorization Server Endpoints
+
+These endpoints are available when `oauth_server.enabled: true` in the configuration.
+
+### GET /.well-known/oauth-authorization-server
+
+Returns OAuth 2.0 Authorization Server Metadata (RFC 8414).
+
+**Response (200 OK):**
+
+```json
+{
+  "issuer": "https://mcp.example.com",
+  "authorization_endpoint": "https://mcp.example.com/oauth/authorize",
+  "token_endpoint": "https://mcp.example.com/oauth/token",
+  "jwks_uri": "https://mcp.example.com/oauth/jwks",
+  "registration_endpoint": "https://mcp.example.com/oauth/register",
+  "scopes_supported": ["mcp:read", "mcp:write"],
+  "response_types_supported": ["code"],
+  "response_modes_supported": ["query"],
+  "grant_types_supported": ["authorization_code", "refresh_token"],
+  "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
+  "code_challenge_methods_supported": ["S256"]
+}
+```
+
+**Example:**
+
+```bash
+curl https://mcp.example.com/.well-known/oauth-authorization-server
+```
+
+### GET /oauth/jwks
+
+Returns the JSON Web Key Set for verifying tokens.
+
+**Response (200 OK):**
+
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "key-1",
+      "n": "...",
+      "e": "AQAB"
+    }
+  ]
+}
+```
+
+**Example:**
+
+```bash
+curl https://mcp.example.com/oauth/jwks
+```
+
+### GET /oauth/authorize
+
+Displays the authorization page (login form or IdP redirect).
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `response_type` | Yes | Must be `code` |
+| `client_id` | Yes | Client identifier |
+| `redirect_uri` | Yes | Callback URL |
+| `state` | Recommended | CSRF protection value |
+| `code_challenge` | Yes | PKCE code challenge (S256) |
+| `code_challenge_method` | Yes | Must be `S256` |
+| `scope` | No | Space-separated scopes |
+
+**Example:**
+
+```
+GET /oauth/authorize?response_type=code&client_id=my-client&redirect_uri=https://claude.ai/api/mcp/auth_callback&state=abc123&code_challenge=E9Melhoa...&code_challenge_method=S256
+```
+
+### POST /oauth/authorize
+
+Processes the login form submission.
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+**Form Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `username` | User's login name |
+| `password` | User's password |
+| `csrf_token` | CSRF token from the form |
+
+**Response:** Redirects to `redirect_uri` with authorization code.
+
+### POST /oauth/token
+
+Exchange authorization code for tokens or refresh tokens.
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+**Authorization Code Exchange:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `grant_type` | Yes | `authorization_code` |
+| `code` | Yes | Authorization code |
+| `redirect_uri` | Yes | Must match authorize request |
+| `client_id` | Yes | Client identifier |
+| `code_verifier` | Yes | PKCE code verifier |
+
+**Refresh Token:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `grant_type` | Yes | `refresh_token` |
+| `refresh_token` | Yes | Refresh token |
+| `client_id` | Yes | Client identifier |
+
+**Response (200 OK):**
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "dGhpcyBpcyBhIHJl...",
+  "scope": "mcp:read mcp:write"
+}
+```
+
+**Error Response (400 Bad Request):**
+
+```json
+{
+  "error": "invalid_grant",
+  "error_description": "Authorization code has expired"
+}
+```
+
+**Example:**
+
+```bash
+curl -X POST https://mcp.example.com/oauth/token \
+  -d "grant_type=authorization_code" \
+  -d "code=AUTH_CODE" \
+  -d "redirect_uri=https://claude.ai/api/mcp/auth_callback" \
+  -d "client_id=my-client" \
+  -d "code_verifier=VERIFIER"
+```
+
+### POST /oauth/register
+
+Dynamic client registration (RFC 7591). Only available when `allow_dynamic_registration: true`.
+
+**Content-Type:** `application/json`
+
+**Request Body:**
+
+```json
+{
+  "redirect_uris": ["https://example.com/callback"],
+  "client_name": "My Application",
+  "token_endpoint_auth_method": "none"
+}
+```
+
+**Response (201 Created):**
+
+```json
+{
+  "client_id": "generated-client-id",
+  "client_secret": "generated-secret",
+  "redirect_uris": ["https://example.com/callback"],
+  "client_name": "My Application",
+  "token_endpoint_auth_method": "none"
+}
+```
+
+**Example:**
+
+```bash
+curl -X POST https://mcp.example.com/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{"redirect_uris": ["https://example.com/callback"], "client_name": "My App"}'
 ```
 
 ## Authentication

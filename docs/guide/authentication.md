@@ -34,7 +34,7 @@ In server mode, configure valid tokens that clients can use:
 auth:
   type: bearer
   bearer:
-    tokens:
+    valid_tokens:
       - "token-abc123"
       - "token-def456"
 ```
@@ -47,7 +47,7 @@ For security, use environment variables for tokens:
 auth:
   type: bearer
   bearer:
-    tokens:
+    valid_tokens:
       - "${API_TOKEN_1}"
       - "${API_TOKEN_2}"
 ```
@@ -266,6 +266,132 @@ auth:
     client_id: "my-client"
     client_secret: "${OAUTH_CLIENT_SECRET}"
     resource: "urn:mcp-server:production"
+```
+
+## OAuth Authorization Server
+
+The MCP Bridge can act as an OAuth 2.0 Authorization Server, issuing access tokens for clients. This enables direct integration with tools like Claude Desktop's "Remote MCP Connector" feature without needing intermediate tools.
+
+### When to Use
+
+Use the OAuth Authorization Server when:
+
+- Connecting Claude Desktop directly to the bridge
+- You want the bridge to manage its own authentication
+- You need to issue tokens for MCP access
+
+### Built-in Mode
+
+Built-in mode provides local user management with bcrypt password hashing:
+
+```yaml
+server:
+  oauth_server:
+    enabled: true
+    issuer: "https://mcp.example.com"
+    mode: builtin
+    token_lifetime: 1h
+    refresh_token_lifetime: 24h
+    signing:
+      algorithm: RS256
+      key_file: "/etc/pgedge/jwt-private.pem"
+    builtin:
+      users:
+        - username: admin
+          password_hash: "$2a$10$..."  # bcrypt hash
+          scopes: ["mcp:read", "mcp:write"]
+        - username: reader
+          password_env: "READER_PASSWORD"  # hashed at runtime
+          scopes: ["mcp:read"]
+    allowed_redirect_uris:
+      - "https://claude.ai/api/mcp/auth_callback"
+    scopes_supported:
+      - "mcp:read"
+      - "mcp:write"
+```
+
+**Generating Password Hashes**
+
+Use the `htpasswd` utility or a bcrypt library:
+
+```bash
+# Using htpasswd (Apache utilities)
+htpasswd -nbBC 10 "" 'mypassword' | tr -d ':\n'
+
+# Using Python
+python3 -c "import bcrypt; print(bcrypt.hashpw(b'mypassword', bcrypt.gensalt()).decode())"
+```
+
+### Federated Mode
+
+Federated mode delegates authentication to an upstream identity provider (Google, Okta, etc.):
+
+```yaml
+server:
+  oauth_server:
+    enabled: true
+    issuer: "https://mcp.example.com"
+    mode: federated
+    token_lifetime: 1h
+    signing:
+      algorithm: RS256
+      key_file: "/etc/pgedge/jwt-private.pem"
+    federated:
+      upstream_issuer: "https://accounts.google.com"
+      client_id: "${GOOGLE_CLIENT_ID}"
+      client_secret_env: "GOOGLE_CLIENT_SECRET"
+      scopes: ["openid", "email", "profile"]
+      allowed_domains:
+        - "example.com"
+      default_scopes: ["mcp:read"]
+      admin_users:
+        - "admin@example.com"
+      admin_scopes: ["mcp:read", "mcp:write", "mcp:admin"]
+    allowed_redirect_uris:
+      - "https://claude.ai/api/mcp/auth_callback"
+```
+
+### OAuth Endpoints
+
+When enabled, the authorization server exposes these endpoints:
+
+| Endpoint | Description |
+|----------|-------------|
+| `/.well-known/oauth-authorization-server` | Server metadata (RFC 8414) |
+| `/oauth/jwks` | JSON Web Key Set for token verification |
+| `/oauth/authorize` | Authorization endpoint (login UI) |
+| `/oauth/token` | Token endpoint (code exchange, refresh) |
+| `/oauth/register` | Dynamic client registration (if enabled) |
+
+### Using with Claude Desktop
+
+1. Enable the OAuth server in your configuration
+2. In Claude Desktop, go to Settings → Connectors
+3. Add a new MCP Remote connector with your bridge URL
+4. Claude Desktop will automatically discover OAuth endpoints and initiate the flow
+5. Log in with your configured credentials
+6. The bridge issues tokens that Claude Desktop uses for subsequent requests
+
+### JWT Signing Keys
+
+For production, generate a proper RSA or ECDSA key pair:
+
+```bash
+# RSA 2048-bit key
+openssl genrsa -out jwt-private.pem 2048
+openssl rsa -in jwt-private.pem -pubout -out jwt-public.pem
+
+# ECDSA P-256 key
+openssl ecparam -genkey -name prime256v1 -noout -out jwt-private.pem
+openssl ec -in jwt-private.pem -pubout -out jwt-public.pem
+```
+
+For development only, you can use `generate_key: true` to create ephemeral keys:
+
+```yaml
+signing:
+  algorithm: RS256
+  generate_key: true  # WARNING: Keys lost on restart
 ```
 
 ## Common OAuth Providers

@@ -54,6 +54,7 @@ Use client mode when you want to:
 
 - **HTTP/SSE Transport**: Full support for JSON-RPC over HTTP with Server-Sent Events for notifications
 - **Authentication**: Bearer token and OAuth 2.0/OIDC authentication
+- **OAuth Authorization Server**: Built-in OAuth server for direct Claude Desktop integration
 - **TLS Encryption**: HTTPS with optional mutual TLS (mTLS) for client certificates
 - **Session Management**: Stateful sessions with automatic timeout and cleanup
 - **CORS Support**: Configurable cross-origin resource sharing for browser clients
@@ -71,10 +72,9 @@ mode: server
 
 server:
   listen: ":8080"
-
-mcp:
-  command: "python"
-  args: ["-m", "my_mcp_server"]
+  mcp_server:
+    command: "python"
+    args: ["-m", "my_mcp_server"]
 ```
 
 2. Run the bridge:
@@ -100,11 +100,10 @@ mode: client
 
 client:
   url: "https://mcp.example.com/mcp"
-
-auth:
-  type: bearer
-  bearer:
-    token: "${MCP_AUTH_TOKEN}"
+  auth:
+    type: bearer
+    bearer:
+      token: "${MCP_AUTH_TOKEN}"
 ```
 
 2. Run the bridge:

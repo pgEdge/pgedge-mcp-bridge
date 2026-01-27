@@ -40,15 +40,16 @@ type Config struct {
 
 // ServerConfig contains HTTP server mode configuration
 type ServerConfig struct {
-	Listen       string          `yaml:"listen"`
-	TLS          *TLSConfig      `yaml:"tls,omitempty"`
-	CORS         *CORSConfig     `yaml:"cors,omitempty"`
-	Auth         *AuthConfig     `yaml:"auth,omitempty"`
-	ReadTimeout  time.Duration   `yaml:"read_timeout"`
-	WriteTimeout time.Duration   `yaml:"write_timeout"`
-	IdleTimeout  time.Duration   `yaml:"idle_timeout"`
-	MCPServer    MCPServerConfig `yaml:"mcp_server"`
-	Session      SessionConfig   `yaml:"session"`
+	Listen       string             `yaml:"listen"`
+	TLS          *TLSConfig         `yaml:"tls,omitempty"`
+	CORS         *CORSConfig        `yaml:"cors,omitempty"`
+	Auth         *AuthConfig        `yaml:"auth,omitempty"`
+	OAuthServer  *OAuthServerConfig `yaml:"oauth_server,omitempty"`
+	ReadTimeout  time.Duration      `yaml:"read_timeout"`
+	WriteTimeout time.Duration      `yaml:"write_timeout"`
+	IdleTimeout  time.Duration      `yaml:"idle_timeout"`
+	MCPServer    MCPServerConfig    `yaml:"mcp_server"`
+	Session      SessionConfig      `yaml:"session"`
 }
 
 // ClientConfig contains HTTP client mode configuration
@@ -134,6 +135,110 @@ type OAuthConfig struct {
 	UsePKCE          bool     `yaml:"use_pkce"`
 }
 
+// OAuthServerConfig configures the OAuth 2.0 Authorization Server
+type OAuthServerConfig struct {
+	// Enabled turns on the authorization server functionality
+	Enabled bool `yaml:"enabled"`
+
+	// Issuer is the OAuth issuer URL (typically the bridge's external URL)
+	Issuer string `yaml:"issuer"`
+
+	// Mode: "builtin" or "federated"
+	Mode string `yaml:"mode"`
+
+	// TokenLifetime is the access token validity duration
+	TokenLifetime time.Duration `yaml:"token_lifetime"`
+
+	// RefreshTokenLifetime is the refresh token validity duration
+	RefreshTokenLifetime time.Duration `yaml:"refresh_token_lifetime"`
+
+	// AuthCodeLifetime is the authorization code validity (short, e.g., 10min)
+	AuthCodeLifetime time.Duration `yaml:"auth_code_lifetime"`
+
+	// Signing configuration for JWT signing
+	Signing *SigningConfig `yaml:"signing,omitempty"`
+
+	// BuiltIn configuration for built-in mode
+	BuiltIn *BuiltInAuthConfig `yaml:"builtin,omitempty"`
+
+	// Federated configuration for federated mode
+	Federated *FederatedAuthConfig `yaml:"federated,omitempty"`
+
+	// AllowedRedirectURIs lists allowed redirect URI patterns
+	AllowedRedirectURIs []string `yaml:"allowed_redirect_uris"`
+
+	// ScopesSupported lists the scopes this server supports
+	ScopesSupported []string `yaml:"scopes_supported,omitempty"`
+
+	// AllowDynamicRegistration enables the /oauth/register endpoint
+	AllowDynamicRegistration bool `yaml:"allow_dynamic_registration"`
+}
+
+// SigningConfig for JWT token signing
+type SigningConfig struct {
+	// Algorithm: RS256, ES256, etc.
+	Algorithm string `yaml:"algorithm"`
+
+	// KeyFile path to private key (PEM format)
+	KeyFile string `yaml:"key_file,omitempty"`
+
+	// KeyID for JWKS
+	KeyID string `yaml:"key_id,omitempty"`
+
+	// GenerateKey generates an ephemeral key if true (dev mode only)
+	GenerateKey bool `yaml:"generate_key,omitempty"`
+}
+
+// BuiltInAuthConfig for built-in user management
+type BuiltInAuthConfig struct {
+	// Users is a list of configured users
+	Users []UserConfig `yaml:"users"`
+
+	// LoginTemplate path to custom login page template
+	LoginTemplate string `yaml:"login_template,omitempty"`
+}
+
+// UserConfig for a built-in user
+type UserConfig struct {
+	Username     string   `yaml:"username"`
+	PasswordHash string   `yaml:"password_hash,omitempty"` // bcrypt hash
+	PasswordEnv  string   `yaml:"password_env,omitempty"`  // env var for plaintext password (hashed at runtime)
+	Scopes       []string `yaml:"scopes,omitempty"`
+}
+
+// FederatedAuthConfig for upstream IdP federation
+type FederatedAuthConfig struct {
+	// UpstreamIssuer is the upstream IdP's issuer URL
+	UpstreamIssuer string `yaml:"upstream_issuer"`
+
+	// UpstreamDiscoveryURL (optional, defaults to issuer + well-known)
+	UpstreamDiscoveryURL string `yaml:"upstream_discovery_url,omitempty"`
+
+	// ClientID for the upstream IdP
+	ClientID string `yaml:"client_id"`
+
+	// ClientSecret for the upstream IdP
+	ClientSecret string `yaml:"client_secret,omitempty"`
+
+	// ClientSecretEnv to read client secret from environment
+	ClientSecretEnv string `yaml:"client_secret_env,omitempty"`
+
+	// Scopes to request from upstream
+	Scopes []string `yaml:"scopes,omitempty"`
+
+	// AllowedDomains restricts which email domains can authenticate (optional)
+	AllowedDomains []string `yaml:"allowed_domains,omitempty"`
+
+	// DefaultScopes to grant to federated users
+	DefaultScopes []string `yaml:"default_scopes,omitempty"`
+
+	// AdminUsers list of users (by email or subject) to grant admin scopes
+	AdminUsers []string `yaml:"admin_users,omitempty"`
+
+	// AdminScopes to grant to admin users
+	AdminScopes []string `yaml:"admin_scopes,omitempty"`
+}
+
 // SessionConfig for managing MCP sessions
 type SessionConfig struct {
 	Enabled         bool          `yaml:"enabled"`
@@ -203,11 +308,13 @@ func expandEnvVars(s string) string {
 	})
 }
 
-// FindConfigFile looks for config.yaml in standard locations
+// FindConfigFile looks for config.yaml in standard locations.
+// Search order: /etc/pgedge/config.yaml, then same directory as binary.
 func FindConfigFile() (string, error) {
-	// Check current directory
-	if _, err := os.Stat("config.yaml"); err == nil {
-		return "config.yaml", nil
+	// Check /etc/pgedge first
+	etcPath := "/etc/pgedge/config.yaml"
+	if _, err := os.Stat(etcPath); err == nil {
+		return etcPath, nil
 	}
 
 	// Check executable directory
@@ -220,18 +327,5 @@ func FindConfigFile() (string, error) {
 		}
 	}
 
-	// Check common config directories
-	configDirs := []string{
-		"/etc/mcp-bridge",
-		filepath.Join(os.Getenv("HOME"), ".config", "mcp-bridge"),
-	}
-
-	for _, dir := range configDirs {
-		path := filepath.Join(dir, "config.yaml")
-		if _, err := os.Stat(path); err == nil {
-			return path, nil
-		}
-	}
-
-	return "", fmt.Errorf("config.yaml not found in standard locations")
+	return "", fmt.Errorf("config.yaml not found in /etc/pgedge or executable directory")
 }

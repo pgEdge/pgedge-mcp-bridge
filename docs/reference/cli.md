@@ -16,15 +16,13 @@ Path to the configuration file.
 
 If not specified, the bridge searches for `config.yaml` in:
 
-1. Current working directory
+1. `/etc/pgedge/config.yaml`
 2. Directory containing the executable
-3. `/etc/mcp-bridge/` (Linux/macOS)
-4. `~/.config/mcp-bridge/` (Linux/macOS)
 
 **Example:**
 
 ```bash
-mcp-bridge -c /etc/mcp-bridge/config.yaml
+mcp-bridge -c /etc/pgedge/config.yaml
 mcp-bridge --config ./my-config.yaml
 ```
 
@@ -145,7 +143,7 @@ After=network.target
 Type=simple
 User=mcp
 Group=mcp
-ExecStart=/usr/local/bin/mcp-bridge -c /etc/mcp-bridge/config.yaml
+ExecStart=/usr/local/bin/mcp-bridge -c /etc/pgedge/config.yaml
 Restart=on-failure
 RestartSec=5
 Environment=MCP_AUTH_TOKEN=your-token
