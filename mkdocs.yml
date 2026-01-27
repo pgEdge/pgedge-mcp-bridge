@@ -74,4 +74,5 @@ nav:
   - Reference:
       - CLI Reference: reference/cli.md
       - API Reference: reference/api.md
+  - Changelog: CHANGELOG.md
   - Licence: LICENCE.md

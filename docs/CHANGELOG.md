@@ -5,6 +5,34 @@ All notable changes to the pgEdge MCP Bridge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha3] - 2026-01-27
+
+### Added
+
+- **OAuth Authorization Server**: Built-in OAuth 2.0 Authorization Server for direct Claude Desktop integration
+  - Implements OAuth 2.0 Authorization Code flow with PKCE (RFC 7636)
+  - Publishes OAuth metadata at `/.well-known/oauth-authorization-server` (RFC 8414)
+  - JWKS endpoint at `/oauth/jwks` for token verification
+  - Built-in mode with local user management and bcrypt password hashing
+  - Federated mode for delegating authentication to upstream IdPs (Google, Okta, etc.)
+  - Dynamic client registration support (RFC 7591)
+  - JWT access tokens with RS256 or ES256 signing
+  - Refresh token rotation for long-lived sessions
+- **New Endpoints**:
+  - `GET /ready` - Readiness check endpoint (verifies MCP subprocess is running)
+  - `GET /.well-known/oauth-authorization-server` - OAuth server metadata
+  - `GET /oauth/jwks` - JSON Web Key Set
+  - `GET/POST /oauth/authorize` - Authorization endpoint
+  - `POST /oauth/token` - Token endpoint
+  - `POST /oauth/register` - Dynamic client registration
+
+### Changed
+
+- **Configuration**: Updated config file search order to `/etc/pgedge/config.yaml` then executable directory
+- **Documentation**: Comprehensive updates to reflect OAuth server capabilities and correct configuration field names
+
+[1.0.0-alpha3]: https://github.com/pgEdge/pgedge-mcp-bridge/releases/tag/v1.0.0-alpha3
+
 ## [1.0.0-alpha2] - 2026-01-26
 
 ### Added

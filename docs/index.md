@@ -121,3 +121,4 @@ mcp-bridge -c config.yaml
 - [Server Mode Guide](guide/server-mode.md) - Configure and run in server mode
 - [Client Mode Guide](guide/client-mode.md) - Configure and run in client mode
 - [Configuration Reference](guide/configuration.md) - Full configuration options
+- [Changelog](CHANGELOG.md) - Release history and changes
