@@ -17,6 +17,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -107,7 +108,13 @@ func (h *MCPHandler) HandlePost(w http.ResponseWriter, r *http.Request) {
 
 	// Check Accept header
 	accept := r.Header.Get("Accept")
-	if accept != "" && accept != ContentTypeJSON && accept != "*/*" && accept != "application/json, */*" {
+	wantsSSE := false
+	switch {
+	case accept == "" || accept == ContentTypeJSON || accept == "*/*" || accept == "application/json, */*":
+		// JSON response (default)
+	case accept == ContentTypeSSE || strings.Contains(accept, ContentTypeSSE):
+		wantsSSE = true
+	default:
 		h.writeError(w, http.StatusNotAcceptable, "unsupported accept type")
 		return
 	}
@@ -161,7 +168,7 @@ func (h *MCPHandler) HandlePost(w http.ResponseWriter, r *http.Request) {
 	// Handle based on message type
 	switch msg.Type() {
 	case protocol.MessageTypeRequest:
-		h.handleRequest(w, r, session, body, msg)
+		h.handleRequest(w, r, session, body, msg, wantsSSE)
 
 	case protocol.MessageTypeNotification:
 		h.handleNotification(w, r, session, body)
@@ -172,7 +179,7 @@ func (h *MCPHandler) HandlePost(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRequest handles a JSON-RPC request message.
-func (h *MCPHandler) handleRequest(w http.ResponseWriter, r *http.Request, session *Session, body []byte, msg *protocol.Message) {
+func (h *MCPHandler) handleRequest(w http.ResponseWriter, r *http.Request, session *Session, body []byte, msg *protocol.Message, wantsSSE bool) {
 	req := msg.ToRequest()
 	if req == nil {
 		h.writeJSONRPCError(w, protocol.RequestID{}, protocol.NewInvalidRequestError("invalid request"))
@@ -247,10 +254,22 @@ func (h *MCPHandler) handleRequest(w http.ResponseWriter, r *http.Request, sessi
 		}
 
 		// Write response
-		w.Header().Set("Content-Type", ContentTypeJSON)
 		w.Header().Set(MCPSessionIDHeader, session.ID)
-		w.WriteHeader(http.StatusOK)
-		w.Write(response)
+		if wantsSSE {
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				h.writeError(w, http.StatusInternalServerError, "streaming not supported")
+				return
+			}
+			sse := NewSSEWriter(w, flusher)
+			sse.SetHeaders(w)
+			_ = sse.WriteMessage(response)
+			sse.Close()
+		} else {
+			w.Header().Set("Content-Type", ContentTypeJSON)
+			w.WriteHeader(http.StatusOK)
+			w.Write(response)
+		}
 
 	case <-time.After(timeout):
 		h.logger.Error("timeout waiting for response",
