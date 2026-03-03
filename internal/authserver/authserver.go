@@ -29,10 +29,10 @@ type Server struct {
 	logger      *logging.Logger
 
 	// Mode-specific handlers
-	mode                     string
-	builtinAuthorizeHandler  *AuthorizeHandler
+	mode                      string
+	builtinAuthorizeHandler   *AuthorizeHandler
 	federatedAuthorizeHandler *FederatedAuthorizeHandler
-	tokenHandler             *TokenHandler
+	tokenHandler              *TokenHandler
 }
 
 // New creates a new OAuth authorization server.
