@@ -5,6 +5,21 @@ All notable changes to the pgEdge MCP Bridge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha4] - 2026-03-03
+
+### Added
+
+- **RFC 9728 Protected Resource Metadata**: New `/.well-known/oauth-protected-resource` endpoint for OAuth resource discovery, required by Claude's connection flow
+- **Root-path MCP endpoint**: MCP handlers now accept requests at `/` in addition to `/mcp`, for compatibility with clients that POST directly to the server URL
+- **Root-level registration endpoint**: Dynamic client registration now served at `/register` in addition to `/oauth/register`
+
+### Changed
+
+- **Registration endpoint**: Metadata document now advertises `/register` as the canonical registration endpoint
+- **Auth middleware**: Added `/oauth/callback`, `/.well-known/oauth-protected-resource`, and `/register` to auth skip paths
+
+[1.0.0-alpha4]: https://github.com/pgEdge/pgedge-mcp-bridge/releases/tag/v1.0.0-alpha4
+
 ## [1.0.0-alpha3] - 2026-01-27
 
 ### Added
