@@ -140,7 +140,10 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 
 // RegisterRoutes registers OAuth endpoints on the given mux.
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
-	// Discovery endpoint
+	// RFC 9728: Protected Resource Metadata discovery
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource", s.handleProtectedResourceMetadata)
+
+	// RFC 8414: Authorization Server Metadata discovery
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", s.handleMetadata)
 
 	// JWKS endpoint
@@ -161,7 +164,10 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /oauth/token", s.tokenHandler)
 
 	// Optional: Dynamic client registration
+	// Dynamic client registration - serve at both /register (MCP spec)
+	// and /oauth/register (legacy) for compatibility.
 	if s.cfg.AllowDynamicRegistration {
+		mux.HandleFunc("POST /register", s.handleRegister)
 		mux.HandleFunc("POST /oauth/register", s.handleRegister)
 	}
 
@@ -170,6 +176,24 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 		"mode", s.cfg.Mode,
 		"dynamic_registration", s.cfg.AllowDynamicRegistration,
 	)
+}
+
+// handleProtectedResourceMetadata serves the RFC 9728 Protected Resource Metadata.
+// This tells clients which authorization server protects this resource.
+func (s *Server) handleProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
+	meta := ProtectedResourceMetadata{
+		Resource:               s.cfg.Issuer,
+		AuthorizationServers:   []string{s.cfg.Issuer},
+		BearerMethodsSupported: []string{"header"},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+
+	if err := json.NewEncoder(w).Encode(meta); err != nil {
+		s.logger.Error("failed to encode protected resource metadata", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
 }
 
 // handleMetadata serves the OAuth metadata document.

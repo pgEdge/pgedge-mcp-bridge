@@ -164,10 +164,13 @@ func NewServer(cfg *config.ServerConfig, logger *logging.Logger) (*Server, error
 			// Skip OAuth endpoints from auth middleware
 			skipPaths = append(skipPaths,
 				"/.well-known/oauth-authorization-server",
+				"/.well-known/oauth-protected-resource",
 				"/oauth/jwks",
 				"/oauth/authorize",
+				"/oauth/callback",
 				"/oauth/token",
 				"/oauth/register",
+				"/register",
 			)
 		}
 
@@ -215,10 +218,14 @@ func NewServer(cfg *config.ServerConfig, logger *logging.Logger) (*Server, error
 func (s *Server) buildRouter() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	// MCP endpoints
+	// MCP endpoints - serve at both /mcp and / (root) for compatibility
+	// with clients like Claude that POST directly to the server URL.
 	mux.HandleFunc("POST /mcp", s.mcpHandler.HandlePost)
 	mux.HandleFunc("GET /mcp", s.mcpHandler.HandleSSE)
 	mux.HandleFunc("DELETE /mcp", s.mcpHandler.HandleSessionClose)
+	mux.HandleFunc("POST /{$}", s.mcpHandler.HandlePost)
+	mux.HandleFunc("GET /{$}", s.mcpHandler.HandleSSE)
+	mux.HandleFunc("DELETE /{$}", s.mcpHandler.HandleSessionClose)
 
 	// Health check endpoints
 	mux.HandleFunc("GET /health", s.handleHealth)

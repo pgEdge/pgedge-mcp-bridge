@@ -59,6 +59,19 @@ type Metadata struct {
 	ServiceDocumentation string `json:"service_documentation,omitempty"`
 }
 
+// ProtectedResourceMetadata represents RFC 9728 OAuth 2.0 Protected Resource Metadata.
+// This tells clients where to find the authorization server for this resource.
+type ProtectedResourceMetadata struct {
+	// Resource is the protected resource identifier (the server URL).
+	Resource string `json:"resource"`
+
+	// AuthorizationServers lists the authorization server(s) for this resource.
+	AuthorizationServers []string `json:"authorization_servers"`
+
+	// BearerMethodsSupported lists the methods for sending bearer tokens.
+	BearerMethodsSupported []string `json:"bearer_methods_supported,omitempty"`
+}
+
 // BuildMetadata constructs the OAuth metadata for the server.
 func BuildMetadata(issuer string, scopes []string, allowDynamicRegistration bool) *Metadata {
 	// Ensure issuer doesn't have trailing slash
@@ -88,7 +101,7 @@ func BuildMetadata(issuer string, scopes []string, allowDynamicRegistration bool
 	}
 
 	if allowDynamicRegistration {
-		m.RegistrationEndpoint = issuer + "/oauth/register"
+		m.RegistrationEndpoint = issuer + "/register"
 	}
 
 	return m

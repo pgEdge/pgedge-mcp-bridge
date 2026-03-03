@@ -439,7 +439,7 @@ func TestBuildMetadata(t *testing.T) {
 		t.Errorf("unexpected token endpoint: %s", metadata.TokenEndpoint)
 	}
 
-	if metadata.RegistrationEndpoint != "https://mcp.example.com/oauth/register" {
+	if metadata.RegistrationEndpoint != "https://mcp.example.com/register" {
 		t.Errorf("expected registration endpoint when enabled")
 	}
 
