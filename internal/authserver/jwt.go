@@ -247,13 +247,17 @@ func loadKeyFromFile(path string, alg jose.SignatureAlgorithm) (privateKey, publ
 
 func generateKeyID() string {
 	b := make([]byte, 8)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	return encodeBase64URL(b)
 }
 
 func generateJTI() string {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	return encodeBase64URL(b)
 }
 
@@ -283,13 +287,17 @@ func encodeBase64URL(data []byte) string {
 // GenerateClientID generates a new random client ID.
 func GenerateClientID() string {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	return encodeBase64URL(b)
 }
 
 // GenerateClientSecret generates a new random client secret.
 func GenerateClientSecret() string {
 	b := make([]byte, 32)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	return encodeBase64URL(b)
 }

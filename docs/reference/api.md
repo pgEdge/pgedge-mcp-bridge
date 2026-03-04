@@ -235,6 +235,14 @@ No headers required. Authentication is not required for readiness checks.
 curl http://localhost:8080/ready
 ```
 
+## Root-Path MCP Endpoints
+
+The MCP endpoints are also available at the root path (`/`), in addition to `/mcp`. The behavior is identical:
+
+- `POST /` - Send JSON-RPC request (same as `POST /mcp`)
+- `GET /` - SSE notification stream (same as `GET /mcp`)
+- `DELETE /` - Close session (same as `DELETE /mcp`)
+
 ## OAuth Authorization Server Endpoints
 
 These endpoints are available when `oauth_server.enabled: true` in the configuration.
@@ -251,7 +259,7 @@ Returns OAuth 2.0 Authorization Server Metadata (RFC 8414).
   "authorization_endpoint": "https://mcp.example.com/oauth/authorize",
   "token_endpoint": "https://mcp.example.com/oauth/token",
   "jwks_uri": "https://mcp.example.com/oauth/jwks",
-  "registration_endpoint": "https://mcp.example.com/oauth/register",
+  "registration_endpoint": "https://mcp.example.com/register",
   "scopes_supported": ["mcp:read", "mcp:write"],
   "response_types_supported": ["code"],
   "response_modes_supported": ["query"],
@@ -265,6 +273,27 @@ Returns OAuth 2.0 Authorization Server Metadata (RFC 8414).
 
 ```bash
 curl https://mcp.example.com/.well-known/oauth-authorization-server
+```
+
+### GET /.well-known/oauth-protected-resource
+
+Returns OAuth 2.0 Protected Resource Metadata (RFC 9728). Indicates which authorization server protects this resource.
+
+**Response (200 OK):**
+
+```json
+{
+  "resource": "https://mcp.example.com",
+  "authorization_servers": ["https://mcp.example.com"],
+  "scopes_supported": ["mcp:read", "mcp:write"],
+  "bearer_methods_supported": ["header"]
+}
+```
+
+**Example:**
+
+```bash
+curl https://mcp.example.com/.well-known/oauth-protected-resource
 ```
 
 ### GET /oauth/jwks
@@ -405,9 +434,9 @@ Callback endpoint for federated mode. Handles the redirect from the upstream IdP
 
 **Response:** Redirects to the original client's `redirect_uri` with either an authorization code or error.
 
-### POST /oauth/register
+### POST /register and POST /oauth/register
 
-Dynamic client registration (RFC 7591). Only available when `allow_dynamic_registration: true`.
+Dynamic client registration (RFC 7591). Available at both `/register` and `/oauth/register`. Only available when `allow_dynamic_registration: true`.
 
 **Content-Type:** `application/json`
 

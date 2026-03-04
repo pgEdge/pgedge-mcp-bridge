@@ -19,22 +19,18 @@ import (
 )
 
 // ParseTLSVersion converts a version string to a TLS version constant.
-// Supported values: "1.0", "1.1", "1.2", "1.3"
+// Supported values: "1.2", "1.3"
 // Returns 0 if the version string is empty (use default).
 func ParseTLSVersion(version string) (uint16, error) {
 	switch version {
 	case "":
 		return 0, nil
-	case "1.0":
-		return tls.VersionTLS10, nil
-	case "1.1":
-		return tls.VersionTLS11, nil
 	case "1.2":
 		return tls.VersionTLS12, nil
 	case "1.3":
 		return tls.VersionTLS13, nil
 	default:
-		return 0, fmt.Errorf("unsupported TLS version: %s (supported: 1.0, 1.1, 1.2, 1.3)", version)
+		return 0, fmt.Errorf("unsupported TLS version: %s (supported: 1.2, 1.3)", version)
 	}
 }
 

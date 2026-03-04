@@ -267,7 +267,7 @@ func (oa *OAuthAuthenticator) Validate(ctx context.Context, req *http.Request) (
 func (oa *OAuthAuthenticator) validateJWT(ctx context.Context, token string) (*Principal, error) {
 	idToken, err := oa.oidcVerifier.Verify(ctx, token)
 	if err != nil {
-		return nil, NewAuthError(ErrInvalidToken, fmt.Sprintf("JWT verification failed: %v", err), "MCP Bridge", "Bearer")
+		return nil, NewAuthError(ErrInvalidToken, "JWT verification failed", "MCP Bridge", "Bearer")
 	}
 
 	// Extract claims

@@ -169,44 +169,23 @@ auth:
 #### Complete OAuth Server Configuration
 
 ```yaml
-auth:
-  type: oauth
-  oauth:
-    # OIDC discovery (recommended)
-    discovery_url: "https://auth.example.com"
+server:
+  auth:
+    type: oauth
+    oauth:
+      # OIDC discovery (recommended)
+      discovery_url: "https://auth.example.com"
 
-    # Token validation
-    audience: "mcp-bridge-api"
-    required_scopes:
-      - "mcp:read"
-      - "mcp:write"
+      # JWKS URL for JWT validation
+      jwks_url: "https://auth.example.com/.well-known/jwks.json"
 
-    # Claim mappings
-    claims:
-      subject_claim: "sub"
-      email_claim: "email"
-      roles_claim: "roles"
+      # Scopes to require
+      scopes:
+        - "mcp:read"
+        - "mcp:write"
 
-    # Validation options
-    validation:
-      allowed_algorithms:
-        - "RS256"
-        - "ES256"
-      clock_skew: 30s
-      require_expiration: true
-      max_token_age: 1h
-
-    # JWKS caching
-    jwks:
-      refresh_interval: 1h
-      fetch_timeout: 10s
-
-    # Fallback to introspection
-    introspection:
-      enabled: true
-      endpoint: "https://auth.example.com/oauth/introspect"
-      client_id: "mcp-bridge"
-      client_secret: "${OAUTH_CLIENT_SECRET}"
+      # Fallback to introspection for opaque tokens
+      introspection_url: "https://auth.example.com/oauth/introspect"
 ```
 
 ### Client Mode (Obtaining OAuth Tokens)
@@ -478,7 +457,7 @@ auth:
 Enable debug logging to see detailed validation errors:
 
 ```yaml
-logging:
+log:
   level: debug
 ```
 

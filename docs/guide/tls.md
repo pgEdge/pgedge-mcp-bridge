@@ -22,10 +22,10 @@ mode: server
 server:
   listen: ":8443"
 
-tls:
-  enabled: true
-  cert_file: "/etc/mcp-bridge/tls/server.crt"
-  key_file: "/etc/mcp-bridge/tls/server.key"
+  tls:
+    enabled: true
+    cert_file: "/etc/mcp-bridge/tls/server.crt"
+    key_file: "/etc/mcp-bridge/tls/server.key"
 ```
 
 ### TLS Version Configuration
@@ -33,55 +33,19 @@ tls:
 Configure minimum and maximum TLS versions:
 
 ```yaml
-tls:
-  enabled: true
-  cert_file: "/etc/mcp-bridge/tls/server.crt"
-  key_file: "/etc/mcp-bridge/tls/server.key"
-  min_version: "1.2"  # Minimum TLS 1.2 (recommended)
-  max_version: "1.3"  # Maximum TLS 1.3
+server:
+  tls:
+    enabled: true
+    cert_file: "/etc/mcp-bridge/tls/server.crt"
+    key_file: "/etc/mcp-bridge/tls/server.key"
+    min_version: "1.2"  # Minimum TLS 1.2 (recommended)
+    max_version: "1.3"  # Maximum TLS 1.3
 ```
 
-Supported versions: `"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`
+Supported versions: `"1.2"`, `"1.3"`
 
 !!! warning
-    TLS 1.0 and 1.1 are deprecated. Always use TLS 1.2 or higher in production.
-
-### Cipher Suite Configuration
-
-Configure allowed cipher suites for TLS 1.2:
-
-```yaml
-tls:
-  enabled: true
-  cert_file: "/etc/mcp-bridge/tls/server.crt"
-  key_file: "/etc/mcp-bridge/tls/server.key"
-  min_version: "1.2"
-  cipher_suites:
-    - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
-    - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
-    - "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
-    - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
-    - "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"
-    - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
-```
-
-!!! note
-    TLS 1.3 uses a fixed set of cipher suites and ignores this configuration.
-
-### Curve Preferences
-
-Configure elliptic curve preferences for key exchange:
-
-```yaml
-tls:
-  enabled: true
-  cert_file: "/etc/mcp-bridge/tls/server.crt"
-  key_file: "/etc/mcp-bridge/tls/server.key"
-  curve_preferences:
-    - "X25519"   # Recommended
-    - "P-256"
-    - "P-384"
-```
+    TLS 1.0 and 1.1 are deprecated and not allowed in the configuration. Always use TLS 1.2 or higher.
 
 ## Mutual TLS (mTLS)
 
@@ -90,12 +54,13 @@ Mutual TLS requires clients to present certificates, providing two-way authentic
 ### Server Configuration for mTLS
 
 ```yaml
-tls:
-  enabled: true
-  cert_file: "/etc/mcp-bridge/tls/server.crt"
-  key_file: "/etc/mcp-bridge/tls/server.key"
-  client_ca_file: "/etc/mcp-bridge/tls/client-ca.crt"
-  client_auth: "verify"
+server:
+  tls:
+    enabled: true
+    cert_file: "/etc/mcp-bridge/tls/server.crt"
+    key_file: "/etc/mcp-bridge/tls/server.key"
+    client_ca: "/etc/mcp-bridge/tls/client-ca.crt"
+    client_auth: "verify"
 ```
 
 ### Client Authentication Modes
@@ -115,13 +80,13 @@ mode: server
 server:
   listen: ":8443"
 
-tls:
-  enabled: true
-  cert_file: "/etc/mcp-bridge/tls/server.crt"
-  key_file: "/etc/mcp-bridge/tls/server.key"
-  client_ca_file: "/etc/mcp-bridge/tls/client-ca.crt"
-  client_auth: "verify"
-  min_version: "1.2"
+  tls:
+    enabled: true
+    cert_file: "/etc/mcp-bridge/tls/server.crt"
+    key_file: "/etc/mcp-bridge/tls/server.key"
+    client_ca: "/etc/mcp-bridge/tls/client-ca.crt"
+    client_auth: "verify"
+    min_version: "1.2"
 ```
 
 ## Client Mode TLS
@@ -136,8 +101,8 @@ mode: client
 client:
   url: "https://mcp.example.com/mcp"
 
-tls:
-  ca_cert: "/etc/ssl/certs/custom-ca.crt"
+  tls:
+    ca_cert: "/etc/ssl/certs/custom-ca.crt"
 ```
 
 ### Client Certificates for mTLS
@@ -150,10 +115,10 @@ mode: client
 client:
   url: "https://mcp.example.com/mcp"
 
-tls:
-  ca_cert: "/etc/ssl/certs/server-ca.crt"
-  cert_file: "/etc/mcp-bridge/tls/client.crt"
-  key_file: "/etc/mcp-bridge/tls/client.key"
+  tls:
+    ca_cert: "/etc/ssl/certs/server-ca.crt"
+    cert_file: "/etc/mcp-bridge/tls/client.crt"
+    key_file: "/etc/mcp-bridge/tls/client.key"
 ```
 
 ### Server Name Indication (SNI)
@@ -161,9 +126,10 @@ tls:
 Override the server name for certificate verification:
 
 ```yaml
-tls:
-  ca_cert: "/etc/ssl/certs/ca.crt"
-  server_name: "mcp.example.com"
+client:
+  tls:
+    ca_cert: "/etc/ssl/certs/ca.crt"
+    server_name: "mcp.example.com"
 ```
 
 ### Skip Certificate Verification
@@ -171,8 +137,9 @@ tls:
 For development environments only:
 
 ```yaml
-tls:
-  insecure_skip_verify: true
+client:
+  tls:
+    insecure_skip_verify: true
 ```
 
 !!! danger
@@ -232,10 +199,11 @@ certbot certonly --standalone -d mcp.example.com
 ```
 
 ```yaml
-tls:
-  enabled: true
-  cert_file: "/etc/letsencrypt/live/mcp.example.com/fullchain.pem"
-  key_file: "/etc/letsencrypt/live/mcp.example.com/privkey.pem"
+server:
+  tls:
+    enabled: true
+    cert_file: "/etc/letsencrypt/live/mcp.example.com/fullchain.pem"
+    key_file: "/etc/letsencrypt/live/mcp.example.com/privkey.pem"
 ```
 
 ## Complete TLS Examples
@@ -248,20 +216,20 @@ mode: server
 server:
   listen: ":443"
 
-tls:
-  enabled: true
-  cert_file: "/etc/letsencrypt/live/mcp.example.com/fullchain.pem"
-  key_file: "/etc/letsencrypt/live/mcp.example.com/privkey.pem"
-  min_version: "1.2"
+  tls:
+    enabled: true
+    cert_file: "/etc/letsencrypt/live/mcp.example.com/fullchain.pem"
+    key_file: "/etc/letsencrypt/live/mcp.example.com/privkey.pem"
+    min_version: "1.2"
 
-auth:
-  type: bearer
-  bearer:
-    tokens:
-      - "${MCP_AUTH_TOKEN}"
+  auth:
+    type: bearer
+    bearer:
+      valid_tokens:
+        - "${MCP_AUTH_TOKEN}"
 
-mcp:
-  command: "/usr/local/bin/mcp-server"
+  mcp_server:
+    command: "/usr/local/bin/mcp-server"
 ```
 
 ### mTLS Server
@@ -272,22 +240,16 @@ mode: server
 server:
   listen: ":8443"
 
-tls:
-  enabled: true
-  cert_file: "/etc/mcp-bridge/tls/server.crt"
-  key_file: "/etc/mcp-bridge/tls/server.key"
-  client_ca_file: "/etc/mcp-bridge/tls/client-ca.crt"
-  client_auth: "verify"
-  min_version: "1.2"
-  cipher_suites:
-    - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
-    - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
-  curve_preferences:
-    - "X25519"
-    - "P-256"
+  tls:
+    enabled: true
+    cert_file: "/etc/mcp-bridge/tls/server.crt"
+    key_file: "/etc/mcp-bridge/tls/server.key"
+    client_ca: "/etc/mcp-bridge/tls/client-ca.crt"
+    client_auth: "verify"
+    min_version: "1.2"
 
-mcp:
-  command: "/usr/local/bin/mcp-server"
+  mcp_server:
+    command: "/usr/local/bin/mcp-server"
 ```
 
 ### mTLS Client
@@ -298,10 +260,10 @@ mode: client
 client:
   url: "https://mcp.example.com:8443/mcp"
 
-tls:
-  ca_cert: "/etc/mcp-bridge/tls/server-ca.crt"
-  cert_file: "/etc/mcp-bridge/tls/client.crt"
-  key_file: "/etc/mcp-bridge/tls/client.key"
+  tls:
+    ca_cert: "/etc/mcp-bridge/tls/server-ca.crt"
+    cert_file: "/etc/mcp-bridge/tls/client.crt"
+    key_file: "/etc/mcp-bridge/tls/client.key"
 ```
 
 ## Troubleshooting
@@ -328,7 +290,7 @@ tls:
 Enable debug logging:
 
 ```yaml
-logging:
+log:
   level: debug
 ```
 

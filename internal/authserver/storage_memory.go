@@ -12,9 +12,20 @@ package authserver
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
+
+// Storage limits to prevent memory exhaustion.
+const (
+	maxAuthCodes     = 10000
+	maxRefreshTokens = 50000
+	maxClients       = 1000
+)
+
+// ErrStorageFull is returned when a storage limit is exceeded.
+var ErrStorageFull = errors.New("storage limit exceeded")
 
 // MemoryStorage is an in-memory implementation of Storage.
 // Suitable for single-instance deployments and development.
@@ -100,6 +111,9 @@ func (ms *MemoryStorage) Close() error {
 func (ms *MemoryStorage) StoreAuthorizationCode(ctx context.Context, code *AuthorizationCode) error {
 	ms.authCodesMu.Lock()
 	defer ms.authCodesMu.Unlock()
+	if len(ms.authCodes) >= maxAuthCodes {
+		return ErrStorageFull
+	}
 	ms.authCodes[code.Code] = code
 	return nil
 }
@@ -136,6 +150,9 @@ func (ms *MemoryStorage) DeleteAuthorizationCode(ctx context.Context, code strin
 func (ms *MemoryStorage) StoreRefreshToken(ctx context.Context, token *RefreshToken) error {
 	ms.refreshMu.Lock()
 	defer ms.refreshMu.Unlock()
+	if len(ms.refreshTokens) >= maxRefreshTokens {
+		return ErrStorageFull
+	}
 	ms.refreshTokens[token.Token] = token
 	return nil
 }
@@ -185,6 +202,9 @@ func (ms *MemoryStorage) DeleteRefreshTokensForUser(ctx context.Context, userID 
 func (ms *MemoryStorage) StoreClient(ctx context.Context, client *Client) error {
 	ms.clientsMu.Lock()
 	defer ms.clientsMu.Unlock()
+	if len(ms.clients) >= maxClients {
+		return ErrStorageFull
+	}
 	ms.clients[client.ClientID] = client
 	return nil
 }

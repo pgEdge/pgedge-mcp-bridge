@@ -117,60 +117,62 @@ server:
 
 ## MCP Server Configuration
 
-Configuration for the MCP subprocess. Required when `mode: server`.
+Configuration for the MCP subprocess. Nested under `server:`. Required when `mode: server`.
 
-### mcp_server.command
+### server.mcp_server.command
 
 **Required.** Command to execute the MCP server.
 
-### mcp_server.args
+### server.mcp_server.args
 
 Arguments to pass to the command.
 
-### mcp_server.dir
+### server.mcp_server.dir
 
 Working directory for the subprocess.
 
-### mcp_server.env
+### server.mcp_server.env
 
 Environment variables for the subprocess.
 
 ```yaml
-mcp_server:
-  command: "python"
-  args:
-    - "-m"
-    - "mcp_server"
-  dir: "/opt/mcp-server"
-  env:
-    PYTHONUNBUFFERED: "1"
-    LOG_LEVEL: "info"
+server:
+  mcp_server:
+    command: "python"
+    args:
+      - "-m"
+      - "mcp_server"
+    dir: "/opt/mcp-server"
+    env:
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: "info"
 ```
 
-### mcp_server.graceful_shutdown_timeout
+### server.mcp_server.graceful_shutdown_timeout
 
-Maximum time to wait for graceful shutdown. Default: `5s`
+Maximum time to wait for graceful shutdown. Default: `30s`
 
-### mcp_server.restart_on_failure
+### server.mcp_server.restart_on_failure
 
 Automatically restart the subprocess if it exits unexpectedly. Default: `false`
 
-### mcp_server.max_restarts
+### server.mcp_server.max_restarts
 
 Maximum number of restart attempts. Default: `5`
 
-### mcp_server.restart_delay
+### server.mcp_server.restart_delay
 
 Delay between restart attempts. Default: `5s`
 
 ```yaml
-mcp_server:
-  command: "python"
-  args: ["-m", "mcp_server"]
-  graceful_shutdown_timeout: 5s
-  restart_on_failure: true
-  max_restarts: 5
-  restart_delay: 5s
+server:
+  mcp_server:
+    command: "python"
+    args: ["-m", "mcp_server"]
+    graceful_shutdown_timeout: 30s
+    restart_on_failure: true
+    max_restarts: 5
+    restart_delay: 5s
 ```
 
 ## Client Configuration
@@ -190,14 +192,6 @@ client:
 
 Request timeout. Default: `30s`
 
-### client.connect_timeout
-
-Connection establishment timeout. Default: `10s`
-
-### client.keepalive_interval
-
-SSE keepalive interval. Default: `30s`
-
 ### client.max_idle_conns
 
 Maximum idle connections in the pool. Default: `10`
@@ -206,84 +200,75 @@ Maximum idle connections in the pool. Default: `10`
 
 Idle connection timeout. Default: `90s`
 
-### client.max_response_size
-
-Maximum response size in bytes. Default: `10485760` (10 MB)
-
 ```yaml
 client:
   url: "https://mcp.example.com/mcp"
   timeout: 30s
-  connect_timeout: 10s
-  keepalive_interval: 30s
   max_idle_conns: 10
   idle_conn_timeout: 90s
-  max_response_size: 10485760
 ```
 
 ## Retry Configuration
 
-Retry settings for client mode.
+Retry settings for client mode. Nested under `client:`.
 
-### retry.enabled
+### client.retry.enabled
 
 Enable automatic retry on failure. Default: `false`
 
-### retry.max_retries
+### client.retry.max_retries
 
 Maximum retry attempts. Default: `3`
 
-### retry.initial_delay
+### client.retry.initial_delay
 
 Initial delay between retries. Default: `100ms`
 
-### retry.max_delay
+### client.retry.max_delay
 
 Maximum delay between retries. Default: `5s`
 
-### retry.multiplier
+### client.retry.multiplier
 
 Backoff multiplier. Default: `2.0`
 
 ```yaml
-retry:
-  enabled: true
-  max_retries: 5
-  initial_delay: 1s
-  max_delay: 30s
-  multiplier: 2.0
+client:
+  retry:
+    enabled: true
+    max_retries: 5
+    initial_delay: 1s
+    max_delay: 30s
+    multiplier: 2.0
 ```
 
 ## Session Configuration
 
-Session management settings.
+Session management settings. Nested under `server:`.
 
-### session.enabled
+### server.session.enabled
 
 Enable session support. Default: `true`
 
-### session.timeout
+### server.session.timeout
 
 Session inactivity timeout. Default: `30m`
 
-### session.max_sessions
+### server.session.max_sessions
 
 Maximum concurrent sessions. Default: `100`
 
-### session.cleanup_interval
+### server.session.cleanup_interval
 
 Interval for cleaning up expired sessions. Default: `5m`
 
-### session.session_id
-
-Fixed session ID (client mode only). Optional.
-
 ```yaml
-session:
-  enabled: true
-  timeout: 30m
-  max_sessions: 100
-  cleanup_interval: 5m
+server:
+  session:
+    enabled: true
+    timeout: 30m
+    max_sessions: 100
+    cleanup_interval: 5m
 ```
 
 ## Authentication Configuration
@@ -303,22 +288,24 @@ Authentication type.
 #### Server Mode (Validating)
 
 ```yaml
-auth:
-  type: bearer
-  bearer:
-    valid_tokens:
-      - "token1"
-      - "token2"
-    validation_endpoint: "https://auth.example.com/validate"  # Optional
+server:
+  auth:
+    type: bearer
+    bearer:
+      valid_tokens:
+        - "token1"
+        - "token2"
+      validation_endpoint: "https://auth.example.com/validate"  # Optional
 ```
 
 #### Client Mode (Sending)
 
 ```yaml
-auth:
-  type: bearer
-  bearer:
-    token: "${MCP_AUTH_TOKEN}"
+client:
+  auth:
+    type: bearer
+    bearer:
+      token: "${MCP_AUTH_TOKEN}"
 ```
 
 ### OAuth Authentication
@@ -326,47 +313,32 @@ auth:
 #### Server Mode (Validating)
 
 ```yaml
-auth:
-  type: oauth
-  oauth:
-    discovery_url: "https://auth.example.com"
-    jwks_url: "https://auth.example.com/.well-known/jwks.json"
-    introspection_url: "https://auth.example.com/introspect"
-    audience: "mcp-bridge-api"
-    required_scopes:
-      - "mcp:read"
-    claims:
-      subject_claim: "sub"
-      email_claim: "email"
-    validation:
-      allowed_algorithms:
-        - "RS256"
-      clock_skew: 30s
-      require_expiration: true
-      max_token_age: 1h
-    jwks:
-      refresh_interval: 1h
-      fetch_timeout: 10s
-    introspection:
-      enabled: false
-      client_id: "mcp-bridge"
-      client_secret: "${OAUTH_CLIENT_SECRET}"
+server:
+  auth:
+    type: oauth
+    oauth:
+      discovery_url: "https://auth.example.com"
+      jwks_url: "https://auth.example.com/.well-known/jwks.json"
+      introspection_url: "https://auth.example.com/introspect"
+      scopes:
+        - "mcp:read"
 ```
 
 #### Client Mode (Obtaining)
 
 ```yaml
-auth:
-  type: oauth
-  oauth:
-    discovery_url: "https://auth.example.com"
-    token_url: "https://auth.example.com/oauth/token"
-    client_id: "my-client"
-    client_secret: "${OAUTH_CLIENT_SECRET}"
-    scopes:
-      - "mcp:read"
-    use_pkce: true
-    resource: "urn:mcp-server"
+client:
+  auth:
+    type: oauth
+    oauth:
+      discovery_url: "https://auth.example.com"
+      token_url: "https://auth.example.com/oauth/token"
+      client_id: "my-client"
+      client_secret: "${OAUTH_CLIENT_SECRET}"
+      scopes:
+        - "mcp:read"
+      use_pkce: true
+      resource: "urn:mcp-server"
 ```
 
 ## TLS Configuration
@@ -374,25 +346,27 @@ auth:
 ### Server TLS
 
 ```yaml
-tls:
-  enabled: true
-  cert_file: "/path/to/server.crt"
-  key_file: "/path/to/server.key"
-  client_ca: "/path/to/client-ca.crt"
-  client_auth: "verify"  # none, request, require, verify
-  min_version: "1.2"
-  max_version: "1.3"
+server:
+  tls:
+    enabled: true
+    cert_file: "/path/to/server.crt"
+    key_file: "/path/to/server.key"
+    client_ca: "/path/to/client-ca.crt"
+    client_auth: "verify"  # none, request, require, verify
+    min_version: "1.2"
+    max_version: "1.3"
 ```
 
 ### Client TLS
 
 ```yaml
-tls:
-  ca_cert: "/path/to/ca.crt"
-  cert_file: "/path/to/client.crt"
-  key_file: "/path/to/client.key"
-  insecure_skip_verify: false
-  server_name: "mcp.example.com"
+client:
+  tls:
+    ca_cert: "/path/to/ca.crt"
+    cert_file: "/path/to/client.crt"
+    key_file: "/path/to/client.key"
+    insecure_skip_verify: false
+    server_name: "mcp.example.com"
 ```
 
 ## CORS Configuration
@@ -425,26 +399,27 @@ Allow credentials (cookies, auth headers). Default: `false`
 
 ### cors.max_age
 
-Preflight cache duration in seconds. Default: `0`
+Preflight cache duration in seconds. Default: `86400`
 
 ```yaml
-cors:
-  enabled: true
-  allowed_origins:
-    - "https://app.example.com"
-  allowed_methods:
-    - "GET"
-    - "POST"
-    - "DELETE"
-    - "OPTIONS"
-  allowed_headers:
-    - "Authorization"
-    - "Content-Type"
-    - "Mcp-Session-Id"
-  exposed_headers:
-    - "Mcp-Session-Id"
-  allow_credentials: true
-  max_age: 3600
+server:
+  cors:
+    enabled: true
+    allowed_origins:
+      - "https://app.example.com"
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "DELETE"
+      - "OPTIONS"
+    allowed_headers:
+      - "Authorization"
+      - "Content-Type"
+      - "Mcp-Session-Id"
+    exposed_headers:
+      - "Mcp-Session-Id"
+    allow_credentials: true
+    max_age: 3600
 ```
 
 ## OAuth Authorization Server Configuration

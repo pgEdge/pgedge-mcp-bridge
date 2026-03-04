@@ -367,7 +367,8 @@ func (h *MCPHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("SSE connection established", "session_id", sessionID)
 
 	// Send initial connected event
-	if err := sse.WriteEvent("connected", `{"session_id":"`+sessionID+`"}`); err != nil {
+	connData, _ := json.Marshal(map[string]string{"session_id": sessionID})
+	if err := sse.WriteEvent("connected", string(connData)); err != nil {
 		h.logger.Error("failed to send connected event", "error", err)
 		return
 	}

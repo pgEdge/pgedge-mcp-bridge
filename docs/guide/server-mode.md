@@ -34,9 +34,9 @@ mode: server
 server:
   listen: ":8080"
 
-mcp:
-  command: "python"
-  args: ["-m", "my_mcp_server"]
+  mcp_server:
+    command: "python"
+    args: ["-m", "my_mcp_server"]
 ```
 
 Run the bridge:
@@ -127,26 +127,19 @@ server:
   idle_timeout: 120s     # Keep-alive connection timeout
 ```
 
-### Base Path
-
-Change the base path for MCP endpoints:
-
-```yaml
-server:
-  listen: ":8080"
-  base_path: "/api/v1/mcp"  # Endpoints will be /api/v1/mcp, etc.
-```
-
 ## MCP Server Configuration
+
+The MCP subprocess is configured under `server.mcp_server`.
 
 ### Basic Command
 
 Specify the command to run your MCP server:
 
 ```yaml
-mcp:
-  command: "python"
-  args: ["-m", "my_mcp_server"]
+server:
+  mcp_server:
+    command: "python"
+    args: ["-m", "my_mcp_server"]
 ```
 
 ### Working Directory
@@ -154,9 +147,10 @@ mcp:
 Set the working directory for the subprocess:
 
 ```yaml
-mcp:
-  command: "./mcp-server"
-  working_dir: "/opt/mcp-server"
+server:
+  mcp_server:
+    command: "./mcp-server"
+    dir: "/opt/mcp-server"
 ```
 
 ### Environment Variables
@@ -164,25 +158,26 @@ mcp:
 Pass environment variables to the subprocess:
 
 ```yaml
-mcp:
-  command: "node"
-  args: ["server.js"]
-  env:
-    NODE_ENV: "production"
-    LOG_LEVEL: "info"
-    DATABASE_URL: "${DATABASE_URL}"  # From bridge's environment
+server:
+  mcp_server:
+    command: "node"
+    args: ["server.js"]
+    env:
+      NODE_ENV: "production"
+      LOG_LEVEL: "info"
+      DATABASE_URL: "${DATABASE_URL}"  # From bridge's environment
 ```
 
-### Startup and Shutdown
+### Graceful Shutdown
 
-Configure startup and shutdown behavior:
+Configure shutdown behavior:
 
 ```yaml
-mcp:
-  command: "python"
-  args: ["-m", "mcp_server"]
-  startup_timeout: 10s    # Wait for server to start
-  shutdown_timeout: 5s    # Wait for graceful shutdown
+server:
+  mcp_server:
+    command: "python"
+    args: ["-m", "mcp_server"]
+    graceful_shutdown_timeout: 30s    # Wait for graceful shutdown
 ```
 
 ### Auto-Restart on Failure
@@ -190,12 +185,13 @@ mcp:
 Enable automatic restart when the subprocess crashes:
 
 ```yaml
-mcp:
-  command: "python"
-  args: ["-m", "mcp_server"]
-  restart_on_failure: true
-  max_restarts: 5          # Maximum restart attempts
-  restart_delay: 5s        # Delay between restarts
+server:
+  mcp_server:
+    command: "python"
+    args: ["-m", "mcp_server"]
+    restart_on_failure: true
+    max_restarts: 5          # Maximum restart attempts
+    restart_delay: 5s        # Delay between restarts
 ```
 
 ## Session Management
@@ -203,11 +199,12 @@ mcp:
 Sessions allow clients to maintain state across requests:
 
 ```yaml
-session:
-  enabled: true
-  timeout: 30m           # Session expires after 30 minutes of inactivity
-  max_sessions: 100      # Maximum concurrent sessions
-  cleanup_interval: 5m   # How often to clean up expired sessions
+server:
+  session:
+    enabled: true
+    timeout: 30m           # Session expires after 30 minutes of inactivity
+    max_sessions: 100      # Maximum concurrent sessions
+    cleanup_interval: 5m   # How often to clean up expired sessions
 ```
 
 Clients include the session ID in requests:
@@ -237,61 +234,55 @@ mode: server
 
 server:
   listen: ":8080"
-  base_path: "/mcp"
   read_timeout: 30s
   write_timeout: 60s
   idle_timeout: 120s
 
-mcp:
-  command: "python"
-  args:
-    - "-m"
-    - "mcp_server"
-    - "--config"
-    - "/etc/mcp/config.json"
-  working_dir: "/opt/mcp-server"
-  env:
-    PYTHONUNBUFFERED: "1"
-    LOG_LEVEL: "info"
-  startup_timeout: 10s
-  shutdown_timeout: 5s
-  restart_on_failure: true
-  max_restarts: 5
-  restart_delay: 5s
+  mcp_server:
+    command: "python"
+    args:
+      - "-m"
+      - "mcp_server"
+      - "--config"
+      - "/etc/mcp/config.json"
+    dir: "/opt/mcp-server"
+    env:
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: "info"
+    graceful_shutdown_timeout: 30s
+    restart_on_failure: true
+    max_restarts: 5
+    restart_delay: 5s
 
-session:
-  enabled: true
-  timeout: 30m
-  max_sessions: 100
+  session:
+    enabled: true
+    timeout: 30m
+    max_sessions: 100
 
-auth:
-  type: bearer
-  bearer:
-    tokens:
-      - "${MCP_AUTH_TOKEN}"
+  auth:
+    type: bearer
+    bearer:
+      valid_tokens:
+        - "${MCP_AUTH_TOKEN}"
 
-cors:
-  enabled: true
-  allowed_origins:
-    - "https://app.example.com"
-  allowed_methods:
-    - "GET"
-    - "POST"
-    - "DELETE"
-    - "OPTIONS"
-  allowed_headers:
-    - "Authorization"
-    - "Content-Type"
-    - "Mcp-Session-Id"
-  allow_credentials: true
+  cors:
+    enabled: true
+    allowed_origins:
+      - "https://app.example.com"
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "DELETE"
+      - "OPTIONS"
+    allowed_headers:
+      - "Authorization"
+      - "Content-Type"
+      - "Mcp-Session-Id"
+    allow_credentials: true
 
-logging:
+log:
   level: info
   format: json
-
-health:
-  enabled: true
-  path: "/health"
 ```
 
 ## Next Steps

@@ -117,8 +117,12 @@ func (ba *BearerAuthenticator) Validate(ctx context.Context, req *http.Request) 
 	}
 
 	// First, check against local valid tokens list
-	if len(ba.validTokens) > 0 {
-		if ba.validateTokenLocally(token) {
+	ba.mu.RLock()
+	tokens := ba.validTokens
+	ba.mu.RUnlock()
+
+	if len(tokens) > 0 {
+		if ba.validateTokenLocally(token, tokens) {
 			return ba.createPrincipal(token, nil), nil
 		}
 	}
@@ -138,9 +142,8 @@ func (ba *BearerAuthenticator) Validate(ctx context.Context, req *http.Request) 
 
 // validateTokenLocally checks if the token is in the valid tokens list.
 // Uses constant-time comparison to prevent timing attacks.
-func (ba *BearerAuthenticator) validateTokenLocally(token string) bool {
-	// We still need to iterate, but use constant-time comparison for each check
-	for validToken := range ba.validTokens {
+func (ba *BearerAuthenticator) validateTokenLocally(token string, tokens map[string]bool) bool {
+	for validToken := range tokens {
 		if subtle.ConstantTimeCompare([]byte(token), []byte(validToken)) == 1 {
 			return true
 		}

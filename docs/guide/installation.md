@@ -105,13 +105,11 @@ mcp-bridge --help
 
 ## Configuration File Location
 
-The bridge looks for configuration files in the following locations (in order):
+The bridge looks for a configuration file in the following order:
 
 1. Path specified with `-c` or `--config` flag
-2. `./config.yaml` (current directory)
-3. Directory containing the executable
-4. `/etc/mcp-bridge/config.yaml` (Linux/macOS)
-5. `~/.config/mcp-bridge/config.yaml` (Linux/macOS)
+2. `/etc/pgedge/config.yaml`
+3. `config.yaml` in the same directory as the executable
 
 ## Next Steps
 

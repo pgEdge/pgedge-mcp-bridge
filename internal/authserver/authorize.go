@@ -12,10 +12,13 @@ package authserver
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"html/template"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,6 +34,9 @@ type AuthorizeRequest struct {
 	Nonce               string
 }
 
+// csrfTokenExpiry is how long a CSRF token remains valid.
+const csrfTokenExpiry = 10 * time.Minute
+
 // AuthorizeHandler handles the authorization endpoint.
 type AuthorizeHandler struct {
 	storage             Storage
@@ -39,6 +45,9 @@ type AuthorizeHandler struct {
 	authCodeLifetime    time.Duration
 	scopesSupported     []string
 	loginTemplate       *template.Template
+
+	csrfTokens map[string]time.Time
+	csrfMu     sync.Mutex
 }
 
 // NewAuthorizeHandler creates a new authorization handler for built-in mode.
@@ -72,7 +81,50 @@ func NewAuthorizeHandler(
 		authCodeLifetime:    authCodeLifetime,
 		scopesSupported:     scopesSupported,
 		loginTemplate:       loginTmpl,
+		csrfTokens:          make(map[string]time.Time),
 	}, nil
+}
+
+// generateCSRFToken creates a new CSRF token and stores it with an expiry.
+func (h *AuthorizeHandler) generateCSRFToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(b)
+
+	h.csrfMu.Lock()
+	defer h.csrfMu.Unlock()
+
+	// Clean up expired tokens while we hold the lock
+	now := time.Now()
+	for t, expiry := range h.csrfTokens {
+		if now.After(expiry) {
+			delete(h.csrfTokens, t)
+		}
+	}
+
+	h.csrfTokens[token] = now.Add(csrfTokenExpiry)
+	return token, nil
+}
+
+// validateCSRFToken checks and consumes a CSRF token (one-time use).
+func (h *AuthorizeHandler) validateCSRFToken(token string) bool {
+	if token == "" {
+		return false
+	}
+
+	h.csrfMu.Lock()
+	defer h.csrfMu.Unlock()
+
+	expiry, ok := h.csrfTokens[token]
+	if !ok {
+		return false
+	}
+	// Always delete (one-time use)
+	delete(h.csrfTokens, token)
+
+	return time.Now().Before(expiry)
 }
 
 // ServeHTTP handles GET (show login) and POST (process login) requests.
@@ -110,6 +162,13 @@ func (h *AuthorizeHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 func (h *AuthorizeHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		WriteJSONError(w, ErrInvalidRequest("failed to parse form"))
+		return
+	}
+
+	// Validate CSRF token before processing
+	csrfToken := r.FormValue("csrf_token")
+	if !h.validateCSRFToken(csrfToken) {
+		WriteJSONError(w, ErrInvalidRequest("invalid or expired form submission"))
 		return
 	}
 
@@ -255,21 +314,45 @@ func (h *AuthorizeHandler) validateRequest(req *AuthorizeRequest) *OAuthError {
 }
 
 // isAllowedRedirectURI checks if the URI is in the allowed list.
+// For localhost redirect URIs, only the scheme and host are compared,
+// allowing any port. This supports development tools like Claude Desktop
+// that use dynamic ports on localhost.
 func (h *AuthorizeHandler) isAllowedRedirectURI(uri string) bool {
 	for _, allowed := range h.allowedRedirectURIs {
 		if allowed == uri {
 			return true
 		}
-		// Support localhost with any port for development
-		if strings.HasPrefix(allowed, "http://localhost:") && strings.HasPrefix(uri, "http://localhost:") {
-			return true
+		// Support localhost with any port for development, but require
+		// an exact path match to prevent open redirect attacks.
+		if isLocalhostURI(allowed) && isLocalhostURI(uri) {
+			allowedParsed, err1 := url.Parse(allowed)
+			uriParsed, err2 := url.Parse(uri)
+			if err1 == nil && err2 == nil &&
+				allowedParsed.Scheme == uriParsed.Scheme &&
+				allowedParsed.Path == uriParsed.Path {
+				return true
+			}
 		}
 	}
 	return false
 }
 
+// isLocalhostURI checks if a URI targets localhost.
+func isLocalhostURI(uri string) bool {
+	return strings.HasPrefix(uri, "http://localhost:") ||
+		strings.HasPrefix(uri, "http://localhost/") ||
+		uri == "http://localhost" ||
+		strings.HasPrefix(uri, "http://127.0.0.1:")
+}
+
 // showLoginForm renders the login form.
 func (h *AuthorizeHandler) showLoginForm(w http.ResponseWriter, req *AuthorizeRequest, errorMsg string) {
+	csrfToken, err := h.generateCSRFToken()
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	data := loginTemplateData{
 		Error:               errorMsg,
 		ResponseType:        req.ResponseType,
@@ -280,6 +363,7 @@ func (h *AuthorizeHandler) showLoginForm(w http.ResponseWriter, req *AuthorizeRe
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
 		Nonce:               req.Nonce,
+		CSRFToken:           csrfToken,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -301,6 +385,7 @@ type loginTemplateData struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	Nonce               string
+	CSRFToken           string
 }
 
 const defaultLoginTemplate = `<!DOCTYPE html>
@@ -418,6 +503,7 @@ const defaultLoginTemplate = `<!DOCTYPE html>
         {{end}}
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
             <input type="hidden" name="response_type" value="{{.ResponseType}}">
             <input type="hidden" name="client_id" value="{{.ClientID}}">
             <input type="hidden" name="redirect_uri" value="{{.RedirectURI}}">

@@ -184,14 +184,14 @@ func TestParseTLSVersion(t *testing.T) {
 			expected: 0,
 		},
 		{
-			name:     "TLS 1.0",
-			version:  "1.0",
-			expected: tls.VersionTLS10,
+			name:      "TLS 1.0 rejected",
+			version:   "1.0",
+			expectErr: true,
 		},
 		{
-			name:     "TLS 1.1",
-			version:  "1.1",
-			expected: tls.VersionTLS11,
+			name:      "TLS 1.1 rejected",
+			version:   "1.1",
+			expectErr: true,
 		},
 		{
 			name:     "TLS 1.2",

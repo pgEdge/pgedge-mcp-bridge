@@ -83,14 +83,12 @@ The URL should include the full path to the MCP endpoint.
 
 ### Timeouts
 
-Configure connection and request timeouts:
+Configure request timeouts:
 
 ```yaml
 client:
   url: "https://mcp.example.com/mcp"
   timeout: 30s             # Request timeout
-  connect_timeout: 10s     # Connection establishment timeout
-  keepalive_interval: 30s  # SSE keepalive interval
 ```
 
 ### Connection Pool
@@ -104,16 +102,6 @@ client:
   idle_conn_timeout: 90s   # Idle connection timeout
 ```
 
-### Response Limits
-
-Limit response sizes to prevent memory exhaustion:
-
-```yaml
-client:
-  url: "https://mcp.example.com/mcp"
-  max_response_size: 10485760  # 10 MB
-```
-
 ## Retry Configuration
 
 Configure automatic retry on connection failures:
@@ -122,13 +110,12 @@ Configure automatic retry on connection failures:
 client:
   url: "https://mcp.example.com/mcp"
 
-retry:
-  enabled: true
-  max_attempts: 5          # Maximum retry attempts (0 for infinite)
-  initial_delay: 1s        # Initial delay between retries
-  max_delay: 30s           # Maximum delay (with exponential backoff)
-  multiplier: 2.0          # Backoff multiplier
-  jitter: true             # Add random jitter to prevent thundering herd
+  retry:
+    enabled: true
+    max_retries: 5           # Maximum retry attempts
+    initial_delay: 1s        # Initial delay between retries
+    max_delay: 30s           # Maximum delay (with exponential backoff)
+    multiplier: 2.0          # Backoff multiplier
 ```
 
 With this configuration, retries will occur at approximately:
@@ -148,10 +135,10 @@ Use a bearer token for authentication:
 client:
   url: "https://mcp.example.com/mcp"
 
-auth:
-  type: bearer
-  bearer:
-    token: "${MCP_AUTH_TOKEN}"  # From environment variable
+  auth:
+    type: bearer
+    bearer:
+      token: "${MCP_AUTH_TOKEN}"  # From environment variable
 ```
 
 Run with the token set:
@@ -169,15 +156,15 @@ Use OAuth client credentials flow:
 client:
   url: "https://mcp.example.com/mcp"
 
-auth:
-  type: oauth
-  oauth:
-    token_url: "https://auth.example.com/oauth/token"
-    client_id: "my-client"
-    client_secret: "${OAUTH_CLIENT_SECRET}"
-    scopes:
-      - "mcp:read"
-      - "mcp:write"
+  auth:
+    type: oauth
+    oauth:
+      token_url: "https://auth.example.com/oauth/token"
+      client_id: "my-client"
+      client_secret: "${OAUTH_CLIENT_SECRET}"
+      scopes:
+        - "mcp:read"
+        - "mcp:write"
 ```
 
 ## TLS Configuration
@@ -190,8 +177,8 @@ Use a custom CA certificate for server verification:
 client:
   url: "https://mcp.example.com/mcp"
 
-tls:
-  ca_cert: "/path/to/ca.crt"
+  tls:
+    ca_cert: "/path/to/ca.crt"
 ```
 
 ### Client Certificates (mTLS)
@@ -202,10 +189,10 @@ Use client certificates for mutual TLS:
 client:
   url: "https://mcp.example.com/mcp"
 
-tls:
-  ca_cert: "/path/to/ca.crt"
-  cert_file: "/path/to/client.crt"
-  key_file: "/path/to/client.key"
+  tls:
+    ca_cert: "/path/to/ca.crt"
+    cert_file: "/path/to/client.crt"
+    key_file: "/path/to/client.key"
 ```
 
 ### Skip Verification (Development Only)
@@ -216,22 +203,8 @@ For development environments with self-signed certificates:
 client:
   url: "https://localhost:8443/mcp"
 
-tls:
-  insecure_skip_verify: true  # NOT recommended for production
-```
-
-## Session Management
-
-Enable sessions to maintain state with the server:
-
-```yaml
-client:
-  url: "https://mcp.example.com/mcp"
-
-session:
-  enabled: true
-  # Optionally specify a persistent session ID
-  # session_id: "my-persistent-session"
+  tls:
+    insecure_skip_verify: true  # NOT recommended for production
 ```
 
 ## Logging
@@ -239,10 +212,7 @@ session:
 Configure logging for debugging:
 
 ```yaml
-client:
-  url: "https://mcp.example.com/mcp"
-
-logging:
+log:
   level: debug  # debug, info, warn, error
   format: text  # text or json
 ```
@@ -259,36 +229,27 @@ mode: client
 client:
   url: "https://mcp.example.com/mcp"
   timeout: 30s
-  connect_timeout: 10s
-  keepalive_interval: 30s
-  max_response_size: 10485760
+  max_idle_conns: 10
+  idle_conn_timeout: 90s
 
-auth:
-  type: bearer
-  bearer:
-    token: "${MCP_AUTH_TOKEN}"
+  auth:
+    type: bearer
+    bearer:
+      token: "${MCP_AUTH_TOKEN}"
 
-retry:
-  enabled: true
-  max_attempts: 5
-  initial_delay: 1s
-  max_delay: 30s
-  multiplier: 2.0
-  jitter: true
+  retry:
+    enabled: true
+    max_retries: 5
+    initial_delay: 1s
+    max_delay: 30s
+    multiplier: 2.0
 
-session:
-  enabled: true
+  tls:
+    ca_cert: "/etc/ssl/certs/ca-certificates.crt"
 
-tls:
-  ca_cert: "/etc/ssl/certs/ca-certificates.crt"
-
-logging:
+log:
   level: info
   format: text
-
-stdio:
-  buffer_size: 65536
-  read_timeout: 0s  # No timeout for stdin
 ```
 
 ## Troubleshooting
@@ -322,7 +283,7 @@ If you see 401 or 403 errors:
 Enable debug logging to see detailed information:
 
 ```yaml
-logging:
+log:
   level: debug
 ```
 

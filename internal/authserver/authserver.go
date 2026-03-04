@@ -13,6 +13,7 @@ package authserver
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -33,6 +34,7 @@ type Server struct {
 	builtinAuthorizeHandler   *AuthorizeHandler
 	federatedAuthorizeHandler *FederatedAuthorizeHandler
 	tokenHandler              *TokenHandler
+	rateLimiter               *RateLimiter
 }
 
 // New creates a new OAuth authorization server.
@@ -74,7 +76,11 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 		cfg.Issuer,
 		cfg.TokenLifetime,
 		cfg.RefreshTokenLifetime,
+		logger,
 	)
+
+	// Create rate limiter (20 requests per minute per IP)
+	rateLimiter := NewRateLimiter(20, time.Minute)
 
 	server := &Server{
 		cfg:          cfg,
@@ -82,6 +88,7 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 		tokenIssuer:  tokenIssuer,
 		metadata:     metadata,
 		tokenHandler: tokenHandler,
+		rateLimiter:  rateLimiter,
 		logger:       logger,
 		mode:         cfg.Mode,
 	}
@@ -153,7 +160,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	switch s.mode {
 	case "builtin":
 		mux.Handle("GET /oauth/authorize", s.builtinAuthorizeHandler)
-		mux.Handle("POST /oauth/authorize", s.builtinAuthorizeHandler)
+		mux.Handle("POST /oauth/authorize", s.rateLimiter.RateLimitMiddleware(s.builtinAuthorizeHandler))
 	case "federated":
 		mux.Handle("GET /oauth/authorize", s.federatedAuthorizeHandler)
 		// Callback endpoint for upstream IdP redirect
@@ -161,14 +168,14 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	}
 
 	// Token endpoint
-	mux.Handle("POST /oauth/token", s.tokenHandler)
+	mux.Handle("POST /oauth/token", s.rateLimiter.RateLimitMiddleware(s.tokenHandler))
 
 	// Optional: Dynamic client registration
 	// Dynamic client registration - serve at both /register (MCP spec)
 	// and /oauth/register (legacy) for compatibility.
 	if s.cfg.AllowDynamicRegistration {
-		mux.HandleFunc("POST /register", s.handleRegister)
-		mux.HandleFunc("POST /oauth/register", s.handleRegister)
+		mux.Handle("POST /register", s.rateLimiter.RateLimitMiddleware(http.HandlerFunc(s.handleRegister)))
+		mux.Handle("POST /oauth/register", s.rateLimiter.RateLimitMiddleware(http.HandlerFunc(s.handleRegister)))
 	}
 
 	s.logger.Info("OAuth server routes registered",
@@ -232,7 +239,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64*1024)).Decode(&req); err != nil {
 		WriteJSONError(w, ErrInvalidRequest("invalid JSON body"))
 		return
 	}
@@ -299,6 +306,9 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 // Close releases resources used by the server.
 func (s *Server) Close() error {
+	if s.rateLimiter != nil {
+		s.rateLimiter.Close()
+	}
 	if s.federatedAuthorizeHandler != nil {
 		s.federatedAuthorizeHandler.Close()
 	}

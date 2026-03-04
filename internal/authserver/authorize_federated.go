@@ -34,6 +34,9 @@ type FederatedAuthorizeHandler struct {
 	// Pending authorization state (stores original OAuth request while user authenticates with IdP)
 	pendingMu sync.RWMutex
 	pending   map[string]*pendingAuthRequest
+
+	// done signals the cleanup goroutine to stop
+	done chan struct{}
 }
 
 // pendingAuthRequest stores state while the user is authenticating with upstream IdP
@@ -60,6 +63,7 @@ func NewFederatedAuthorizeHandler(
 		scopesSupported:     scopesSupported,
 		issuer:              issuer,
 		pending:             make(map[string]*pendingAuthRequest),
+		done:                make(chan struct{}),
 	}
 
 	// Start cleanup goroutine for expired pending requests
@@ -73,15 +77,20 @@ func (h *FederatedAuthorizeHandler) cleanupPending() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		h.pendingMu.Lock()
-		cutoff := time.Now().Add(-10 * time.Minute)
-		for state, req := range h.pending {
-			if req.CreatedAt.Before(cutoff) {
-				delete(h.pending, state)
+	for {
+		select {
+		case <-h.done:
+			return
+		case <-ticker.C:
+			h.pendingMu.Lock()
+			cutoff := time.Now().Add(-10 * time.Minute)
+			for state, req := range h.pending {
+				if req.CreatedAt.Before(cutoff) {
+					delete(h.pending, state)
+				}
 			}
+			h.pendingMu.Unlock()
 		}
-		h.pendingMu.Unlock()
 	}
 }
 
@@ -331,14 +340,24 @@ func (h *FederatedAuthorizeHandler) validateRequest(req *AuthorizeRequest) *OAut
 }
 
 // isAllowedRedirectURI checks if the URI is in the allowed list.
+// For localhost redirect URIs, only the scheme and host are compared,
+// allowing any port. This supports development tools like Claude Desktop
+// that use dynamic ports on localhost.
 func (h *FederatedAuthorizeHandler) isAllowedRedirectURI(uri string) bool {
 	for _, allowed := range h.allowedRedirectURIs {
 		if allowed == uri {
 			return true
 		}
-		// Support localhost with any port for development
-		if strings.HasPrefix(allowed, "http://localhost:") && strings.HasPrefix(uri, "http://localhost:") {
-			return true
+		// Support localhost with any port for development, but require
+		// an exact path match to prevent open redirect attacks.
+		if isLocalhostURI(allowed) && isLocalhostURI(uri) {
+			allowedParsed, err1 := url.Parse(allowed)
+			uriParsed, err2 := url.Parse(uri)
+			if err1 == nil && err2 == nil &&
+				allowedParsed.Scheme == uriParsed.Scheme &&
+				allowedParsed.Path == uriParsed.Path {
+				return true
+			}
 		}
 	}
 	return false
@@ -353,10 +372,9 @@ func generateSecureToken(length int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// Close stops background goroutines (for graceful shutdown).
+// Close stops background goroutines for graceful shutdown.
 func (h *FederatedAuthorizeHandler) Close() {
-	// The cleanup goroutine will stop when the process exits
-	// For more graceful shutdown, we could add a done channel
+	close(h.done)
 }
 
 // PendingRequestJSON returns the pending requests as JSON (for debugging).

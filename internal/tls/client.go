@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log"
 
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/config"
 )
@@ -64,6 +65,9 @@ func NewClientTLSConfig(cfg *config.TLSClientConfig) (*tls.Config, error) {
 	}
 
 	// Configure InsecureSkipVerify (use with caution)
+	if cfg.InsecureSkipVerify {
+		log.Println("WARNING: TLS certificate verification is disabled (insecure_skip_verify=true)")
+	}
 	tlsConfig.InsecureSkipVerify = cfg.InsecureSkipVerify
 
 	// Configure ServerName for SNI

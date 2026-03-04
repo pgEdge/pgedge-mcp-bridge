@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -614,7 +615,8 @@ func TestFullAuthorizationCodeFlow(t *testing.T) {
 		t.Fatalf("failed to create token issuer: %v", err)
 	}
 
-	tokenHandler := NewTokenHandler(storage, tokenIssuer, "https://mcp.example.com", time.Hour, 24*time.Hour)
+	testLogger, _ := logging.NewLogger(config.LogConfig{Level: "error", Format: "text", Output: "stderr"})
+	tokenHandler := NewTokenHandler(storage, tokenIssuer, "https://mcp.example.com", time.Hour, 24*time.Hour, testLogger)
 
 	// Step 1: Authorization request (GET)
 	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
@@ -644,8 +646,14 @@ func TestFullAuthorizationCodeFlow(t *testing.T) {
 		t.Error("expected HTML form in response")
 	}
 
-	// Step 2: Submit login form (POST)
+	// Step 2: Submit login form (POST) - generate CSRF token first
+	csrfToken, err := authorizeHandler.generateCSRFToken()
+	if err != nil {
+		t.Fatalf("failed to generate CSRF token: %v", err)
+	}
+
 	formData := url.Values{
+		"csrf_token":            {csrfToken},
 		"username":              {"testuser"},
 		"password":              {"password123"},
 		"response_type":         {"code"},
@@ -1087,6 +1095,332 @@ func TestFederatedAuthorizeHandler_RequestValidation(t *testing.T) {
 				t.Errorf("unexpected OAuth error: %v", oauthErr)
 			}
 		})
+	}
+}
+
+// ===========================================================================
+// Storage Limit Tests
+// ===========================================================================
+
+func TestMemoryStorage_AuthCodeLimit(t *testing.T) {
+	storage := NewMemoryStorage(time.Minute)
+	defer storage.Close()
+
+	ctx := context.Background()
+
+	// Fill to capacity
+	for i := 0; i < maxAuthCodes; i++ {
+		code := &AuthorizationCode{
+			Code:      fmt.Sprintf("code-%d", i),
+			ClientID:  "client-1",
+			ExpiresAt: time.Now().Add(10 * time.Minute),
+			CreatedAt: time.Now(),
+		}
+		if err := storage.StoreAuthorizationCode(ctx, code); err != nil {
+			t.Fatalf("failed to store code %d: %v", i, err)
+		}
+	}
+
+	// Next one should fail
+	code := &AuthorizationCode{
+		Code:      "one-too-many",
+		ClientID:  "client-1",
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+		CreatedAt: time.Now(),
+	}
+	err := storage.StoreAuthorizationCode(ctx, code)
+	if err != ErrStorageFull {
+		t.Errorf("expected ErrStorageFull, got %v", err)
+	}
+}
+
+func TestMemoryStorage_RefreshTokenLimit(t *testing.T) {
+	storage := NewMemoryStorage(time.Minute)
+	defer storage.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < maxRefreshTokens; i++ {
+		token := &RefreshToken{
+			Token:     fmt.Sprintf("token-%d", i),
+			ClientID:  "client-1",
+			UserID:    "user-1",
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+			CreatedAt: time.Now(),
+		}
+		if err := storage.StoreRefreshToken(ctx, token); err != nil {
+			t.Fatalf("failed to store token %d: %v", i, err)
+		}
+	}
+
+	token := &RefreshToken{
+		Token:     "one-too-many",
+		ClientID:  "client-1",
+		UserID:    "user-1",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+	err := storage.StoreRefreshToken(ctx, token)
+	if err != ErrStorageFull {
+		t.Errorf("expected ErrStorageFull, got %v", err)
+	}
+}
+
+func TestMemoryStorage_ClientLimit(t *testing.T) {
+	storage := NewMemoryStorage(time.Minute)
+	defer storage.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < maxClients; i++ {
+		client := &Client{
+			ClientID:  fmt.Sprintf("client-%d", i),
+			CreatedAt: time.Now(),
+		}
+		if err := storage.StoreClient(ctx, client); err != nil {
+			t.Fatalf("failed to store client %d: %v", i, err)
+		}
+	}
+
+	client := &Client{
+		ClientID:  "one-too-many",
+		CreatedAt: time.Now(),
+	}
+	err := storage.StoreClient(ctx, client)
+	if err != ErrStorageFull {
+		t.Errorf("expected ErrStorageFull, got %v", err)
+	}
+}
+
+// ===========================================================================
+// Client Secret Validation Tests
+// ===========================================================================
+
+func TestValidateClientSecret(t *testing.T) {
+	tests := []struct {
+		name     string
+		provided string
+		stored   string
+		valid    bool
+	}{
+		{"public client (empty stored)", "", "", true},
+		{"public client (any provided)", "anything", "", true},
+		{"valid secret", "my-secret", "my-secret", true},
+		{"invalid secret", "wrong", "my-secret", false},
+		{"empty provided with stored", "", "my-secret", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ValidateClientSecret(tt.provided, tt.stored); got != tt.valid {
+				t.Errorf("ValidateClientSecret(%q, %q) = %v, want %v", tt.provided, tt.stored, got, tt.valid)
+			}
+		})
+	}
+}
+
+func TestTokenHandler_ClientSecretValidation(t *testing.T) {
+	storage := NewMemoryStorage(time.Minute)
+	defer storage.Close()
+
+	ctx := context.Background()
+
+	// Register a confidential client
+	confidentialClient := &Client{
+		ClientID:                "confidential-client",
+		ClientSecret:            "super-secret",
+		RedirectURIs:            []string{"https://example.com/callback"},
+		GrantTypes:              []string{"authorization_code", "refresh_token"},
+		TokenEndpointAuthMethod: "client_secret_post",
+		CreatedAt:               time.Now(),
+	}
+	if err := storage.StoreClient(ctx, confidentialClient); err != nil {
+		t.Fatalf("failed to store client: %v", err)
+	}
+
+	// Register a public client
+	publicClient := &Client{
+		ClientID:                "public-client",
+		ClientSecret:            "",
+		RedirectURIs:            []string{"https://example.com/callback"},
+		GrantTypes:              []string{"authorization_code"},
+		TokenEndpointAuthMethod: "none",
+		CreatedAt:               time.Now(),
+	}
+	if err := storage.StoreClient(ctx, publicClient); err != nil {
+		t.Fatalf("failed to store client: %v", err)
+	}
+
+	tokenIssuer, err := NewTokenIssuer("https://mcp.example.com", "RS256", "", "key-1", true)
+	if err != nil {
+		t.Fatalf("failed to create token issuer: %v", err)
+	}
+
+	testLogger, _ := logging.NewLogger(config.LogConfig{Level: "error", Format: "text", Output: "stderr"})
+	handler := NewTokenHandler(storage, tokenIssuer, "https://mcp.example.com", time.Hour, 24*time.Hour, testLogger)
+
+	// Store an auth code for testing
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	h := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(h[:])
+
+	authCode := &AuthorizationCode{
+		Code:                "test-code-secret",
+		ClientID:            "confidential-client",
+		UserID:              "user-1",
+		Username:            "testuser",
+		RedirectURI:         "https://example.com/callback",
+		Scope:               "mcp:read",
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
+		ExpiresAt:           time.Now().Add(10 * time.Minute),
+		CreatedAt:           time.Now(),
+	}
+	if err := storage.StoreAuthorizationCode(ctx, authCode); err != nil {
+		t.Fatalf("failed to store auth code: %v", err)
+	}
+
+	// Test: wrong client_secret should fail
+	formData := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {"test-code-secret"},
+		"redirect_uri":  {"https://example.com/callback"},
+		"client_id":     {"confidential-client"},
+		"client_secret": {"wrong-secret"},
+		"code_verifier": {verifier},
+	}
+
+	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for wrong secret, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error: %v", err)
+	}
+	if errResp["error"] != "invalid_client" {
+		t.Errorf("expected invalid_client error, got %s", errResp["error"])
+	}
+
+	// Test: public client should work without secret
+	publicAuthCode := &AuthorizationCode{
+		Code:                "test-code-public",
+		ClientID:            "public-client",
+		UserID:              "user-1",
+		Username:            "testuser",
+		RedirectURI:         "https://example.com/callback",
+		Scope:               "mcp:read",
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
+		ExpiresAt:           time.Now().Add(10 * time.Minute),
+		CreatedAt:           time.Now(),
+	}
+	if err := storage.StoreAuthorizationCode(ctx, publicAuthCode); err != nil {
+		t.Fatalf("failed to store auth code: %v", err)
+	}
+
+	formData = url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {"test-code-public"},
+		"redirect_uri":  {"https://example.com/callback"},
+		"client_id":     {"public-client"},
+		"code_verifier": {verifier},
+	}
+
+	req = httptest.NewRequest("POST", "/oauth/token", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for public client, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// ===========================================================================
+// CSRF Token Tests
+// ===========================================================================
+
+func TestCSRFToken_GenerateAndValidate(t *testing.T) {
+	handler, err := NewAuthorizeHandler(
+		NewMemoryStorage(time.Minute),
+		nil, // authenticator not needed for CSRF tests
+		[]string{"https://example.com/callback"},
+		10*time.Minute,
+		[]string{"mcp:read"},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("failed to create handler: %v", err)
+	}
+
+	token, err := handler.generateCSRFToken()
+	if err != nil {
+		t.Fatalf("failed to generate CSRF token: %v", err)
+	}
+
+	if token == "" {
+		t.Fatal("expected non-empty token")
+	}
+
+	// Should validate successfully
+	if !handler.validateCSRFToken(token) {
+		t.Error("expected token to be valid")
+	}
+
+	// Should not validate a second time (one-time use)
+	if handler.validateCSRFToken(token) {
+		t.Error("expected token to be consumed after first use")
+	}
+}
+
+func TestCSRFToken_InvalidToken(t *testing.T) {
+	handler, err := NewAuthorizeHandler(
+		NewMemoryStorage(time.Minute),
+		nil,
+		[]string{"https://example.com/callback"},
+		10*time.Minute,
+		[]string{"mcp:read"},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("failed to create handler: %v", err)
+	}
+
+	if handler.validateCSRFToken("nonexistent-token") {
+		t.Error("expected invalid token to fail")
+	}
+
+	if handler.validateCSRFToken("") {
+		t.Error("expected empty token to fail")
+	}
+}
+
+func TestCSRFToken_Expiry(t *testing.T) {
+	handler, err := NewAuthorizeHandler(
+		NewMemoryStorage(time.Minute),
+		nil,
+		[]string{"https://example.com/callback"},
+		10*time.Minute,
+		[]string{"mcp:read"},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("failed to create handler: %v", err)
+	}
+
+	// Manually insert an expired token
+	handler.csrfMu.Lock()
+	handler.csrfTokens["expired-token"] = time.Now().Add(-1 * time.Minute)
+	handler.csrfMu.Unlock()
+
+	if handler.validateCSRFToken("expired-token") {
+		t.Error("expected expired token to fail")
 	}
 }
 

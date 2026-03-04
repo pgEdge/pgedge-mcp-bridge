@@ -15,6 +15,7 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -239,7 +240,8 @@ func (f *FederatedAuthenticator) verifySignature(ctx context.Context, token, kid
 	}
 }
 
-// verifyRSASignature verifies an RSA signature
+// verifyRSASignature verifies an RSA signature using the appropriate hash
+// algorithm for the given JWT algorithm (RS256, RS384, RS512).
 func (f *FederatedAuthenticator) verifyRSASignature(token string, pubKey *rsa.PublicKey, alg string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -251,12 +253,30 @@ func (f *FederatedAuthenticator) verifyRSASignature(token string, pubKey *rsa.Pu
 		return fmt.Errorf("decoding signature: %w", err)
 	}
 
-	// Hash the signed portion
+	// Hash the signed portion using the algorithm matching the JWT header
 	signedData := parts[0] + "." + parts[1]
-	hash := sha256.Sum256([]byte(signedData))
 
-	// Verify signature
-	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash[:], signature)
+	var hashAlg crypto.Hash
+	var digest []byte
+
+	switch alg {
+	case "RS256":
+		hashAlg = crypto.SHA256
+		h := sha256.Sum256([]byte(signedData))
+		digest = h[:]
+	case "RS384":
+		hashAlg = crypto.SHA384
+		h := sha512.Sum384([]byte(signedData))
+		digest = h[:]
+	case "RS512":
+		hashAlg = crypto.SHA512
+		h := sha512.Sum512([]byte(signedData))
+		digest = h[:]
+	default:
+		return fmt.Errorf("unsupported RSA algorithm: %s", alg)
+	}
+
+	return rsa.VerifyPKCS1v15(pubKey, hashAlg, digest, signature)
 }
 
 // Authenticate processes the callback from the upstream IdP

@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/pgEdge/pgedge-mcp-bridge/internal/logging"
 )
 
 // TokenHandler handles the token endpoint.
@@ -25,6 +27,7 @@ type TokenHandler struct {
 	issuer               string
 	tokenLifetime        time.Duration
 	refreshTokenLifetime time.Duration
+	logger               *logging.Logger
 }
 
 // NewTokenHandler creates a new token handler.
@@ -34,6 +37,7 @@ func NewTokenHandler(
 	issuer string,
 	tokenLifetime time.Duration,
 	refreshTokenLifetime time.Duration,
+	logger *logging.Logger,
 ) *TokenHandler {
 	return &TokenHandler{
 		storage:              storage,
@@ -41,6 +45,7 @@ func NewTokenHandler(
 		issuer:               issuer,
 		tokenLifetime:        tokenLifetime,
 		refreshTokenLifetime: refreshTokenLifetime,
+		logger:               logger,
 	}
 }
 
@@ -77,11 +82,32 @@ func (h *TokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// validateClientAuth validates client authentication at the token endpoint.
+// For public clients (token_endpoint_auth_method: "none"), no secret is required.
+// For confidential clients, the secret must match.
+// If the client is not registered (dynamic registration not used), validation is skipped.
+func (h *TokenHandler) validateClientAuth(ctx context.Context, clientID, clientSecret string) *OAuthError {
+	client, err := h.storage.GetClient(ctx, clientID)
+	if err != nil {
+		return ErrServerError("failed to retrieve client")
+	}
+	if client == nil {
+		// Client not registered via dynamic registration; skip validation.
+		// This supports clients that authenticate only via PKCE.
+		return nil
+	}
+	if !ValidateClientSecret(clientSecret, client.ClientSecret) {
+		return ErrInvalidClient("client authentication failed")
+	}
+	return nil
+}
+
 // handleAuthorizationCode handles the authorization_code grant.
 func (h *TokenHandler) handleAuthorizationCode(w http.ResponseWriter, r *http.Request) {
 	code := r.FormValue("code")
 	redirectURI := r.FormValue("redirect_uri")
 	clientID := r.FormValue("client_id")
+	clientSecret := r.FormValue("client_secret")
 	codeVerifier := r.FormValue("code_verifier")
 
 	// Validate required parameters
@@ -110,6 +136,12 @@ func (h *TokenHandler) handleAuthorizationCode(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
+	// Validate client authentication
+	if oauthErr := h.validateClientAuth(ctx, clientID, clientSecret); oauthErr != nil {
+		WriteJSONError(w, oauthErr)
+		return
+	}
+
 	// Retrieve authorization code
 	authCode, err := h.storage.GetAuthorizationCode(ctx, code)
 	if err != nil {
@@ -122,7 +154,9 @@ func (h *TokenHandler) handleAuthorizationCode(w http.ResponseWriter, r *http.Re
 	}
 
 	// Delete the authorization code immediately (one-time use)
-	_ = h.storage.DeleteAuthorizationCode(ctx, code)
+	if err := h.storage.DeleteAuthorizationCode(ctx, code); err != nil {
+		h.logger.Error("failed to delete authorization code", "error", err)
+	}
 
 	// Validate client_id matches
 	if authCode.ClientID != clientID {
@@ -150,6 +184,7 @@ func (h *TokenHandler) handleAuthorizationCode(w http.ResponseWriter, r *http.Re
 func (h *TokenHandler) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	refreshToken := r.FormValue("refresh_token")
 	clientID := r.FormValue("client_id")
+	clientSecret := r.FormValue("client_secret")
 
 	// Validate required parameters
 	if refreshToken == "" {
@@ -162,6 +197,12 @@ func (h *TokenHandler) handleRefreshToken(w http.ResponseWriter, r *http.Request
 	}
 
 	ctx := r.Context()
+
+	// Validate client authentication
+	if oauthErr := h.validateClientAuth(ctx, clientID, clientSecret); oauthErr != nil {
+		WriteJSONError(w, oauthErr)
+		return
+	}
 
 	// Retrieve refresh token
 	token, err := h.storage.GetRefreshToken(ctx, refreshToken)
@@ -181,7 +222,9 @@ func (h *TokenHandler) handleRefreshToken(w http.ResponseWriter, r *http.Request
 	}
 
 	// Delete old refresh token (rotation)
-	_ = h.storage.DeleteRefreshToken(ctx, refreshToken)
+	if err := h.storage.DeleteRefreshToken(ctx, refreshToken); err != nil {
+		h.logger.Error("failed to delete refresh token", "error", err)
+	}
 
 	// Issue new tokens
 	h.issueTokens(w, ctx, token.UserID, token.Username, token.ClientID, token.Scope)

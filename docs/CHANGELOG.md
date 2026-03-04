@@ -5,6 +5,24 @@ All notable changes to the pgEdge MCP Bridge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **MCP Streamable HTTP transport**: Support for the Streamable HTTP transport protocol, where POST requests with `Accept: text/event-stream` receive SSE-wrapped responses
+
+### Fixed
+
+- **Security**: Redirect URI validation now requires exact path matching for localhost URIs, preventing open redirect attacks
+- **Security**: RSA signature verification now uses the correct hash algorithm for RS384 and RS512 (previously always used SHA256)
+- **Security**: Bearer token validation now holds a read lock during concurrent access, preventing data races
+- **Security**: Cryptographic random number generation now panics on failure instead of silently producing zero values
+- **Security**: Registration endpoint request body is now limited to 64KB to prevent memory exhaustion
+- **Security**: JWT verification error details are no longer leaked to clients
+- **Reliability**: Authorization code and refresh token deletion errors are now logged instead of silently discarded
+- **Reliability**: Federated authorization handler cleanup goroutine now properly shuts down on Close()
+- **TLS**: A warning is now logged when `insecure_skip_verify` is enabled
+
 ## [1.0.0-alpha4] - 2026-03-03
 
 ### Added
