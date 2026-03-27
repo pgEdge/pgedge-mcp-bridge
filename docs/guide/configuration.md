@@ -107,12 +107,17 @@ Maximum duration for writing the response. Default: `60s`
 
 Maximum duration to wait for the next request on keep-alive connections. Default: `120s`
 
+### server.sse_keepalive_interval
+
+Interval for sending keepalive pings to SSE (Server-Sent Events) clients. A shorter interval helps detect broken connections faster. Default: `30s`
+
 ```yaml
 server:
   listen: ":8080"
   read_timeout: 30s
   write_timeout: 60s
   idle_timeout: 120s
+  sse_keepalive_interval: 30s
 ```
 
 ## MCP Server Configuration
@@ -148,6 +153,10 @@ server:
       LOG_LEVEL: "info"
 ```
 
+### server.mcp_server.read_timeout
+
+Maximum time to wait for a response from the MCP subprocess. If a request to the subprocess takes longer than this, a timeout error is returned. Default: `30s`
+
 ### server.mcp_server.graceful_shutdown_timeout
 
 Maximum time to wait for graceful shutdown. Default: `30s`
@@ -169,6 +178,7 @@ server:
   mcp_server:
     command: "python"
     args: ["-m", "mcp_server"]
+    read_timeout: 30s
     graceful_shutdown_timeout: 30s
     restart_on_failure: true
     max_restarts: 5
@@ -324,6 +334,10 @@ server:
         - "mcp:read"
 ```
 
+#### auth.oauth.http_timeout
+
+Timeout for HTTP requests made during OAuth token operations (discovery, token exchange, introspection). Default: `30s`
+
 #### Client Mode (Obtaining)
 
 ```yaml
@@ -339,6 +353,7 @@ client:
         - "mcp:read"
       use_pkce: true
       resource: "urn:mcp-server"
+      http_timeout: 30s
 ```
 
 ## TLS Configuration
@@ -560,6 +575,7 @@ Upstream IdP configuration:
 | `default_scopes` | Scopes to grant all authenticated users |
 | `admin_users` | Users (by email/subject) to grant admin scopes |
 | `admin_scopes` | Additional scopes for admin users |
+| `http_timeout` | Timeout for HTTP requests to upstream IdP. Default: `30s` |
 
 ## Complete Examples
 

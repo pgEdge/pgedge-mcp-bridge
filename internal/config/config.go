@@ -40,16 +40,17 @@ type Config struct {
 
 // ServerConfig contains HTTP server mode configuration
 type ServerConfig struct {
-	Listen       string             `yaml:"listen"`
-	TLS          *TLSConfig         `yaml:"tls,omitempty"`
-	CORS         *CORSConfig        `yaml:"cors,omitempty"`
-	Auth         *AuthConfig        `yaml:"auth,omitempty"`
-	OAuthServer  *OAuthServerConfig `yaml:"oauth_server,omitempty"`
-	ReadTimeout  time.Duration      `yaml:"read_timeout"`
-	WriteTimeout time.Duration      `yaml:"write_timeout"`
-	IdleTimeout  time.Duration      `yaml:"idle_timeout"`
-	MCPServer    MCPServerConfig    `yaml:"mcp_server"`
-	Session      SessionConfig      `yaml:"session"`
+	Listen               string             `yaml:"listen"`
+	TLS                  *TLSConfig         `yaml:"tls,omitempty"`
+	CORS                 *CORSConfig        `yaml:"cors,omitempty"`
+	Auth                 *AuthConfig        `yaml:"auth,omitempty"`
+	OAuthServer          *OAuthServerConfig `yaml:"oauth_server,omitempty"`
+	ReadTimeout          time.Duration      `yaml:"read_timeout"`
+	WriteTimeout         time.Duration      `yaml:"write_timeout"`
+	IdleTimeout          time.Duration      `yaml:"idle_timeout"`
+	SSEKeepaliveInterval time.Duration      `yaml:"sse_keepalive_interval"`
+	MCPServer            MCPServerConfig    `yaml:"mcp_server"`
+	Session              SessionConfig      `yaml:"session"`
 }
 
 // ClientConfig contains HTTP client mode configuration
@@ -70,6 +71,7 @@ type MCPServerConfig struct {
 	Env                     map[string]string `yaml:"env,omitempty"`
 	Dir                     string            `yaml:"dir,omitempty"`
 	GracefulShutdownTimeout time.Duration     `yaml:"graceful_shutdown_timeout"`
+	ReadTimeout             time.Duration     `yaml:"read_timeout"`
 	RestartOnFailure        bool              `yaml:"restart_on_failure"`
 	MaxRestarts             int               `yaml:"max_restarts"`
 	RestartDelay            time.Duration     `yaml:"restart_delay"`
@@ -123,16 +125,17 @@ type BearerAuthConfig struct {
 
 // OAuthConfig for OAuth 2.0/2.1 authentication
 type OAuthConfig struct {
-	DiscoveryURL     string   `yaml:"discovery_url,omitempty"`
-	AuthorizationURL string   `yaml:"authorization_url,omitempty"`
-	TokenURL         string   `yaml:"token_url,omitempty"`
-	ClientID         string   `yaml:"client_id"`
-	ClientSecret     string   `yaml:"client_secret,omitempty"`
-	Scopes           []string `yaml:"scopes,omitempty"`
-	IntrospectionURL string   `yaml:"introspection_url,omitempty"`
-	JWKSURL          string   `yaml:"jwks_url,omitempty"`
-	Resource         string   `yaml:"resource,omitempty"`
-	UsePKCE          bool     `yaml:"use_pkce"`
+	DiscoveryURL     string        `yaml:"discovery_url,omitempty"`
+	AuthorizationURL string        `yaml:"authorization_url,omitempty"`
+	TokenURL         string        `yaml:"token_url,omitempty"`
+	ClientID         string        `yaml:"client_id"`
+	ClientSecret     string        `yaml:"client_secret,omitempty"`
+	Scopes           []string      `yaml:"scopes,omitempty"`
+	IntrospectionURL string        `yaml:"introspection_url,omitempty"`
+	JWKSURL          string        `yaml:"jwks_url,omitempty"`
+	Resource         string        `yaml:"resource,omitempty"`
+	UsePKCE          bool          `yaml:"use_pkce"`
+	HTTPTimeout      time.Duration `yaml:"http_timeout"`
 }
 
 // OAuthServerConfig configures the OAuth 2.0 Authorization Server
@@ -237,6 +240,9 @@ type FederatedAuthConfig struct {
 
 	// AdminScopes to grant to admin users
 	AdminScopes []string `yaml:"admin_scopes,omitempty"`
+
+	// HTTPTimeout is the timeout for HTTP requests to the upstream IdP
+	HTTPTimeout time.Duration `yaml:"http_timeout"`
 }
 
 // SessionConfig for managing MCP sessions

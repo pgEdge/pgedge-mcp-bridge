@@ -14,28 +14,31 @@ import "time"
 
 // Default configuration values
 const (
-	DefaultServerListen      = ":8080"
-	DefaultReadTimeout       = 30 * time.Second
-	DefaultWriteTimeout      = 60 * time.Second
-	DefaultIdleTimeout       = 120 * time.Second
-	DefaultClientTimeout     = 30 * time.Second
-	DefaultMaxIdleConns      = 10
-	DefaultIdleConnTimeout   = 90 * time.Second
-	DefaultSessionTimeout    = 30 * time.Minute
-	DefaultMaxSessions       = 100
-	DefaultCleanupInterval   = 5 * time.Minute
-	DefaultGracefulShutdown  = 30 * time.Second
-	DefaultMaxRestarts       = 5
-	DefaultRestartDelay      = 5 * time.Second
-	DefaultRetryMaxRetries   = 3
-	DefaultRetryInitialDelay = 100 * time.Millisecond
-	DefaultRetryMaxDelay     = 5 * time.Second
-	DefaultRetryMultiplier   = 2.0
-	DefaultLogLevel          = "info"
-	DefaultLogFormat         = "text"
-	DefaultLogOutput         = "stderr"
-	DefaultTLSMinVersion     = "1.2"
-	DefaultCORSMaxAge        = 86400
+	DefaultServerListen         = ":8080"
+	DefaultReadTimeout          = 30 * time.Second
+	DefaultWriteTimeout         = 60 * time.Second
+	DefaultIdleTimeout          = 120 * time.Second
+	DefaultSSEKeepaliveInterval = 30 * time.Second
+	DefaultClientTimeout        = 30 * time.Second
+	DefaultMaxIdleConns         = 10
+	DefaultIdleConnTimeout      = 90 * time.Second
+	DefaultSessionTimeout       = 30 * time.Minute
+	DefaultMaxSessions          = 100
+	DefaultCleanupInterval      = 5 * time.Minute
+	DefaultGracefulShutdown     = 30 * time.Second
+	DefaultMCPServerReadTimeout = 30 * time.Second
+	DefaultOAuthHTTPTimeout     = 30 * time.Second
+	DefaultMaxRestarts          = 5
+	DefaultRestartDelay         = 5 * time.Second
+	DefaultRetryMaxRetries      = 3
+	DefaultRetryInitialDelay    = 100 * time.Millisecond
+	DefaultRetryMaxDelay        = 5 * time.Second
+	DefaultRetryMultiplier      = 2.0
+	DefaultLogLevel             = "info"
+	DefaultLogFormat            = "text"
+	DefaultLogOutput            = "stderr"
+	DefaultTLSMinVersion        = "1.2"
+	DefaultCORSMaxAge           = 86400
 
 	// OAuth Server defaults
 	DefaultOAuthTokenLifetime        = 1 * time.Hour
@@ -97,8 +100,14 @@ func applyServerDefaults(s *ServerConfig) {
 	if s.IdleTimeout == 0 {
 		s.IdleTimeout = DefaultIdleTimeout
 	}
+	if s.SSEKeepaliveInterval == 0 {
+		s.SSEKeepaliveInterval = DefaultSSEKeepaliveInterval
+	}
 
 	// MCP Server defaults
+	if s.MCPServer.ReadTimeout == 0 {
+		s.MCPServer.ReadTimeout = DefaultMCPServerReadTimeout
+	}
 	if s.MCPServer.GracefulShutdownTimeout == 0 {
 		s.MCPServer.GracefulShutdownTimeout = DefaultGracefulShutdown
 	}
@@ -118,6 +127,11 @@ func applyServerDefaults(s *ServerConfig) {
 	}
 	if s.Session.CleanupInterval == 0 {
 		s.Session.CleanupInterval = DefaultCleanupInterval
+	}
+
+	// Auth OAuth HTTP timeout default
+	if s.Auth != nil && s.Auth.OAuth != nil && s.Auth.OAuth.HTTPTimeout == 0 {
+		s.Auth.OAuth.HTTPTimeout = DefaultOAuthHTTPTimeout
 	}
 
 	// TLS defaults
@@ -171,6 +185,9 @@ func applyOAuthServerDefaults(o *OAuthServerConfig) {
 	if o.Signing != nil && o.Signing.Algorithm == "" {
 		o.Signing.Algorithm = DefaultOAuthSigningAlgorithm
 	}
+	if o.Federated != nil && o.Federated.HTTPTimeout == 0 {
+		o.Federated.HTTPTimeout = DefaultOAuthHTTPTimeout
+	}
 }
 
 func applyClientDefaults(c *ClientConfig) {
@@ -182,6 +199,11 @@ func applyClientDefaults(c *ClientConfig) {
 	}
 	if c.IdleConnTimeout == 0 {
 		c.IdleConnTimeout = DefaultIdleConnTimeout
+	}
+
+	// OAuth HTTP timeout default
+	if c.Auth != nil && c.Auth.OAuth != nil && c.Auth.OAuth.HTTPTimeout == 0 {
+		c.Auth.OAuth.HTTPTimeout = DefaultOAuthHTTPTimeout
 	}
 
 	// Retry defaults

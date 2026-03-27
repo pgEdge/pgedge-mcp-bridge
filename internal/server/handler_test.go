@@ -234,7 +234,7 @@ func newTestHandler() (*MCPHandler, *testMockProcessManager) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 	return handler, pm
 }
 
@@ -257,7 +257,7 @@ func TestMCPHandler_NewMCPHandler(t *testing.T) {
 	})
 	logger := newTestLogger(t)
 
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	if handler == nil {
 		t.Fatal("NewMCPHandler() returned nil")
@@ -1007,7 +1007,7 @@ func TestMCPHandler_HandleRequest_Success(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create a session first
 	session, _ := sm.CreateSession()
@@ -1056,7 +1056,7 @@ func TestMCPHandler_HandleRequest_Timeout(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create a session first
 	session, _ := sm.CreateSession()
@@ -1091,7 +1091,7 @@ func TestMCPHandler_HandleNotification_Success(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create a session first
 	session, _ := sm.CreateSession()
@@ -1132,7 +1132,7 @@ func TestMCPHandler_ReadLoop_ResponseRouting(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Manually start the read loop
 	handler.ensureReadLoop()
@@ -1174,7 +1174,7 @@ func TestMCPHandler_ReadLoop_NotificationRouting(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create a session
 	session, _ := sm.CreateSession()
@@ -1228,7 +1228,7 @@ func TestMCPHandler_ReadLoop_InvalidJSON(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Start read loop
 	handler.ensureReadLoop()
@@ -1270,7 +1270,7 @@ func TestMCPHandler_ReadLoop_EOF(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Start read loop
 	handler.ensureReadLoop()
@@ -1305,7 +1305,7 @@ func TestMCPHandler_RouteResponse_MissingID(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Start read loop
 	handler.ensureReadLoop()
@@ -1331,7 +1331,7 @@ func TestMCPHandler_RouteResponse_NoPendingRequest(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Start read loop
 	handler.ensureReadLoop()
@@ -1357,7 +1357,7 @@ func TestMCPHandler_HandleSSE_WithNotifications(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create a session first
 	session, err := sm.CreateSession()
@@ -1417,7 +1417,7 @@ func TestMCPHandler_HandleSessionClose_WithSSE(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create a session
 	session, err := sm.CreateSession()
@@ -1470,7 +1470,7 @@ func TestMCPHandler_Shutdown_WithSSEClients(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create sessions with SSE clients
 	for i := 0; i < 3; i++ {
@@ -1522,7 +1522,7 @@ func TestMCPHandler_HandlePost_StdinNil(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create session
 	session, _ := sm.CreateSession()
@@ -1561,7 +1561,7 @@ func TestMCPHandler_HandlePost_InitializeRequest(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Start a goroutine to simulate subprocess response
 	go func() {
@@ -1607,7 +1607,7 @@ func TestMCPHandler_HandlePost_BatchRequest(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Session for request
 	session, _ := sm.CreateSession()
@@ -1637,7 +1637,7 @@ func TestMCPHandler_HandleSSE_StreamingNotSupported(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Create a session
 	session, _ := sm.CreateSession()
@@ -1690,7 +1690,7 @@ func TestMCPHandler_HandlePost_LargeRequest(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	session, _ := sm.CreateSession()
 
@@ -1722,7 +1722,7 @@ func TestMCPHandler_EnsureReadLoop_MultipleCalls(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Call ensureReadLoop multiple times
 	for i := 0; i < 10; i++ {
@@ -1752,7 +1752,7 @@ func TestMCPHandler_HandleNotification_WriteError(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	session, _ := sm.CreateSession()
 
@@ -1783,7 +1783,7 @@ func TestMCPHandler_HandleNotification_StdinWriteErrors(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	session, _ := sm.CreateSession()
 
@@ -1816,7 +1816,7 @@ func TestMCPHandler_HandleNotification_StdinNil(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	session, _ := sm.CreateSession()
 
@@ -1845,7 +1845,7 @@ func TestMCPHandler_HandleNotification_MultipleNotifications(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	session, _ := sm.CreateSession()
 
@@ -1884,7 +1884,7 @@ func TestMCPHandler_HandleRequest_StdinNil(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	session, _ := sm.CreateSession()
 
@@ -1913,7 +1913,7 @@ func TestMCPHandler_HandleRequest_ConcurrentRequests(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	session, _ := sm.CreateSession()
 
@@ -1963,7 +1963,7 @@ func TestMCPHandler_HandleSSE_NotAcceptable(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	session, _ := sm.CreateSession()
 
@@ -1991,7 +1991,7 @@ func TestMCPHandler_HandleSSE_NoSession(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// No session header
 	req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
@@ -2017,7 +2017,7 @@ func TestMCPHandler_HandleSSE_InvalidSession(t *testing.T) {
 		MaxSessions: 100,
 	})
 	logger := createTestLogger()
-	handler := NewMCPHandler(pm, sm, logger)
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
 
 	// Use non-existent session
 	req := httptest.NewRequest(http.MethodGet, "/mcp", nil)

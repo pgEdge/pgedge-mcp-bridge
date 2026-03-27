@@ -38,6 +38,9 @@ const (
 
 	// defaultReadTimeout is the default timeout for reading from the subprocess.
 	defaultReadTimeout = 30 * time.Second
+
+	// defaultSSEKeepaliveInterval is the default interval for SSE keepalive pings.
+	defaultSSEKeepaliveInterval = 30 * time.Second
 )
 
 // MCPHandler handles MCP HTTP requests by forwarding them to the MCP subprocess.
@@ -52,6 +55,12 @@ type MCPHandler struct {
 
 	// logger is used for structured logging.
 	logger *logging.Logger
+
+	// readTimeout is the timeout for reading a response from the subprocess.
+	readTimeout time.Duration
+
+	// sseKeepaliveInterval is the interval for SSE keepalive pings.
+	sseKeepaliveInterval time.Duration
 
 	// mu protects concurrent access to the subprocess I/O.
 	mu sync.Mutex
@@ -70,14 +79,23 @@ type MCPHandler struct {
 }
 
 // NewMCPHandler creates a new MCP handler with the given process manager,
-// session manager, and logger.
-func NewMCPHandler(pm process.Manager, sm *SessionManager, logger *logging.Logger) *MCPHandler {
+// session manager, logger, and configurable timeouts.
+// If readTimeout or sseKeepaliveInterval are zero, defaults are used.
+func NewMCPHandler(pm process.Manager, sm *SessionManager, logger *logging.Logger, readTimeout, sseKeepaliveInterval time.Duration) *MCPHandler {
+	if readTimeout == 0 {
+		readTimeout = defaultReadTimeout
+	}
+	if sseKeepaliveInterval == 0 {
+		sseKeepaliveInterval = defaultSSEKeepaliveInterval
+	}
 	return &MCPHandler{
-		processManager:   pm,
-		sessionManager:   sm,
-		logger:           logger,
-		pendingResponses: make(map[string]chan []byte),
-		sseClients:       make(map[string]*SSEWriter),
+		processManager:       pm,
+		sessionManager:       sm,
+		logger:               logger,
+		readTimeout:          readTimeout,
+		sseKeepaliveInterval: sseKeepaliveInterval,
+		pendingResponses:     make(map[string]chan []byte),
+		sseClients:           make(map[string]*SSEWriter),
 	}
 }
 
@@ -231,7 +249,7 @@ func (h *MCPHandler) handleRequest(w http.ResponseWriter, r *http.Request, sessi
 	)
 
 	// Wait for response with timeout
-	timeout := defaultReadTimeout
+	timeout := h.readTimeout
 	if deadline, ok := r.Context().Deadline(); ok {
 		timeout = time.Until(deadline)
 	}
@@ -392,7 +410,7 @@ func (h *MCPHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-		case <-time.After(30 * time.Second):
+		case <-time.After(h.sseKeepaliveInterval):
 			// Send keepalive
 			if err := sse.WriteEvent("ping", ""); err != nil {
 				h.logger.Debug("SSE connection lost during keepalive", "session_id", sessionID)

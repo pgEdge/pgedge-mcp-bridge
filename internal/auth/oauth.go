@@ -81,11 +81,16 @@ func NewOAuthAuthenticator(cfg *config.OAuthConfig, isServer bool) (*OAuthAuthen
 		return nil, fmt.Errorf("%w: oauth config is nil", ErrInvalidConfiguration)
 	}
 
+	httpTimeout := cfg.HTTPTimeout
+	if httpTimeout == 0 {
+		httpTimeout = 30 * time.Second
+	}
+
 	oa := &OAuthAuthenticator{
 		isServer: isServer,
 		config:   cfg,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: httpTimeout,
 		},
 	}
 

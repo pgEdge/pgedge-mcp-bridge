@@ -73,10 +73,15 @@ func NewFederatedAuthenticator(cfg *config.FederatedAuthConfig) (*FederatedAuthe
 	resolvedCfg := *cfg
 	resolvedCfg.ClientSecret = clientSecret
 
+	httpTimeout := cfg.HTTPTimeout
+	if httpTimeout == 0 {
+		httpTimeout = 30 * time.Second
+	}
+
 	return &FederatedAuthenticator{
 		cfg:        &resolvedCfg,
-		oidcClient: NewOIDCClient(cfg.UpstreamIssuer),
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		oidcClient: NewOIDCClient(cfg.UpstreamIssuer, httpTimeout),
+		httpClient: &http.Client{Timeout: httpTimeout},
 	}, nil
 }
 

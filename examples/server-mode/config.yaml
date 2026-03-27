@@ -25,6 +25,9 @@ server:
   # Idle timeout for keep-alive connections (Go duration format)
   idle_timeout: 120s
 
+  # Interval for sending SSE keepalive pings (Go duration format)
+  # sse_keepalive_interval: 30s
+
   # MCP server configuration (the stdio server to wrap)
   mcp_server:
     # Command to execute the MCP server
@@ -47,6 +50,9 @@ server:
     env:
       MCP_LOG_LEVEL: "info"
       PYTHONUNBUFFERED: "1"
+
+    # Timeout for reading a response from the MCP subprocess (Go duration format)
+    # read_timeout: 30s
 
     # Graceful shutdown timeout - how long to wait for graceful shutdown
     graceful_shutdown_timeout: 5s

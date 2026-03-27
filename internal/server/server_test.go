@@ -711,7 +711,7 @@ func TestServer_StartAndStop(t *testing.T) {
 	// Replace process manager with mock
 	mockPM := newMockProcessManager()
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -773,7 +773,7 @@ func TestServer_StartAlreadyRunning(t *testing.T) {
 	// Replace process manager with mock
 	mockPM := newMockProcessManager()
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx := context.Background()
 
@@ -811,7 +811,7 @@ func TestServer_StopIdempotent(t *testing.T) {
 	// Replace process manager with mock
 	mockPM := newMockProcessManager()
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx := context.Background()
 
@@ -854,7 +854,7 @@ func TestServer_StopWithNilContext(t *testing.T) {
 	// Replace process manager with mock
 	mockPM := newMockProcessManager()
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx := context.Background()
 
@@ -887,7 +887,7 @@ func TestServer_ProcessManagerStartError(t *testing.T) {
 	mockPM := newMockProcessManager()
 	mockPM.startErr = errors.New("failed to start subprocess")
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx := context.Background()
 	err = server.Start(ctx)
@@ -915,7 +915,7 @@ func TestServer_ProcessManagerStopError(t *testing.T) {
 	mockPM := newMockProcessManager()
 	mockPM.stopErr = errors.New("failed to stop subprocess")
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx := context.Background()
 
@@ -957,7 +957,7 @@ func TestServer_MonitorProcessEvents(t *testing.T) {
 	// Replace process manager with mock
 	mockPM := newMockProcessManager()
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1002,7 +1002,7 @@ func TestServer_MonitorProcessEvents_MaxRestartsReached(t *testing.T) {
 	// Replace process manager with mock
 	mockPM := newMockProcessManager()
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx := context.Background()
 
@@ -1055,7 +1055,7 @@ func TestServer_DoneChannelBehavior(t *testing.T) {
 	// Replace process manager with mock
 	mockPM := newMockProcessManager()
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	// Done channel should not be closed initially
 	select {
@@ -1110,7 +1110,7 @@ func TestServer_RestartDoneChannel(t *testing.T) {
 	// Replace process manager with mock
 	mockPM1 := newMockProcessManager()
 	server1.processManager = mockPM1
-	server1.mcpHandler = NewMCPHandler(mockPM1, server1.sessionManager, logger)
+	server1.mcpHandler = NewMCPHandler(mockPM1, server1.sessionManager, logger, 0, 0)
 
 	ctx := context.Background()
 
@@ -1138,7 +1138,7 @@ func TestServer_RestartDoneChannel(t *testing.T) {
 	// Replace process manager with mock
 	mockPM2 := newMockProcessManager()
 	server2.processManager = mockPM2
-	server2.mcpHandler = NewMCPHandler(mockPM2, server2.sessionManager, logger)
+	server2.mcpHandler = NewMCPHandler(mockPM2, server2.sessionManager, logger, 0, 0)
 
 	// Start second server
 	go func() {
@@ -1238,7 +1238,7 @@ func TestServer_HTTPEndpointsIntegration(t *testing.T) {
 	mockPM := newMockProcessManager()
 	mockPM.SetRunning(true)
 	server.processManager = mockPM
-	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger)
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
 
 	ctx := context.Background()
 

@@ -183,7 +183,7 @@ func NewServer(cfg *config.ServerConfig, logger *logging.Logger) (*Server, error
 	}
 
 	// Create MCP handler
-	s.mcpHandler = NewMCPHandler(s.processManager, s.sessionManager, logger)
+	s.mcpHandler = NewMCPHandler(s.processManager, s.sessionManager, logger, cfg.MCPServer.ReadTimeout, cfg.SSEKeepaliveInterval)
 
 	// Build HTTP router
 	mux := s.buildRouter()

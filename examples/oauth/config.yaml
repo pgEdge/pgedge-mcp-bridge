@@ -227,6 +227,9 @@ log:
 #         - "mcp:write"
 #         - "mcp:admin"
 #
+#       # Timeout for HTTP requests to the upstream IdP (discovery, token exchange)
+#       # http_timeout: 30s
+#
 #     allowed_redirect_uris:
 #       - "https://claude.ai/api/mcp/auth_callback"
 #

@@ -61,11 +61,15 @@ type JWK struct {
 	Y   string `json:"y,omitempty"`
 }
 
-// NewOIDCClient creates a new OIDC client for the given issuer
-func NewOIDCClient(issuer string) *OIDCClient {
+// NewOIDCClient creates a new OIDC client for the given issuer.
+// If httpTimeout is zero, a default of 30 seconds is used.
+func NewOIDCClient(issuer string, httpTimeout time.Duration) *OIDCClient {
+	if httpTimeout == 0 {
+		httpTimeout = 30 * time.Second
+	}
 	return &OIDCClient{
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: httpTimeout,
 		},
 		issuer: issuer,
 	}
