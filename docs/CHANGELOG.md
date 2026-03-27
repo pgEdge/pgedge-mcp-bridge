@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **MCP Streamable HTTP transport**: Support for the Streamable HTTP transport protocol, where POST requests with `Accept: text/event-stream` receive SSE-wrapped responses
+- **Configurable timeouts**: New timeout settings for SSE keepalive (`server.sse_keepalive_interval`), MCP subprocess reads (`server.mcp_server.read_timeout`), OAuth HTTP requests (`auth.oauth.http_timeout`), and federated OAuth HTTP requests (`oauth_server.federated.http_timeout`), all defaulting to 30s
+
+### Changed
+
+- **Code quality**: Cleanup and refactoring across the codebase
+- **Test coverage**: Improved test coverage
 
 ### Fixed
 
