@@ -20,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pgEdge/pgedge-mcp-bridge/internal/config"
 )
 
 // AuthorizeRequest represents a parsed authorization request.
@@ -37,6 +39,31 @@ type AuthorizeRequest struct {
 // csrfTokenExpiry is how long a CSRF token remains valid.
 const csrfTokenExpiry = 10 * time.Minute
 
+// loginBranding holds branding values for the login template.
+type loginBranding struct {
+	PageTitle      string
+	Heading        string
+	Subtitle       string
+	UsernameLabel  string
+	PasswordLabel  string
+	ButtonText     string
+	FooterText     string
+	PrimaryColor   string
+	SecondaryColor string
+}
+
+var defaultBranding = loginBranding{
+	PageTitle:      "Sign In - MCP Bridge",
+	Heading:        "Sign In",
+	Subtitle:       "Authorize access to MCP Bridge",
+	UsernameLabel:  "Username",
+	PasswordLabel:  "Password",
+	ButtonText:     "Sign In",
+	FooterText:     "Signing in to:",
+	PrimaryColor:   "#667eea",
+	SecondaryColor: "#764ba2",
+}
+
 // AuthorizeHandler handles the authorization endpoint.
 type AuthorizeHandler struct {
 	storage             Storage
@@ -45,6 +72,7 @@ type AuthorizeHandler struct {
 	authCodeLifetime    time.Duration
 	scopesSupported     []string
 	loginTemplate       *template.Template
+	branding            loginBranding
 
 	csrfTokens map[string]time.Time
 	csrfMu     sync.Mutex
@@ -58,6 +86,7 @@ func NewAuthorizeHandler(
 	authCodeLifetime time.Duration,
 	scopesSupported []string,
 	customLoginTemplate string,
+	brandingCfg *config.LoginBrandingConfig,
 ) (*AuthorizeHandler, error) {
 	var loginTmpl *template.Template
 	var err error
@@ -74,6 +103,37 @@ func NewAuthorizeHandler(
 		}
 	}
 
+	branding := defaultBranding
+	if brandingCfg != nil {
+		if brandingCfg.PageTitle != "" {
+			branding.PageTitle = brandingCfg.PageTitle
+		}
+		if brandingCfg.Heading != "" {
+			branding.Heading = brandingCfg.Heading
+		}
+		if brandingCfg.Subtitle != "" {
+			branding.Subtitle = brandingCfg.Subtitle
+		}
+		if brandingCfg.UsernameLabel != "" {
+			branding.UsernameLabel = brandingCfg.UsernameLabel
+		}
+		if brandingCfg.PasswordLabel != "" {
+			branding.PasswordLabel = brandingCfg.PasswordLabel
+		}
+		if brandingCfg.ButtonText != "" {
+			branding.ButtonText = brandingCfg.ButtonText
+		}
+		if brandingCfg.FooterText != "" {
+			branding.FooterText = brandingCfg.FooterText
+		}
+		if brandingCfg.PrimaryColor != "" {
+			branding.PrimaryColor = brandingCfg.PrimaryColor
+		}
+		if brandingCfg.SecondaryColor != "" {
+			branding.SecondaryColor = brandingCfg.SecondaryColor
+		}
+	}
+
 	return &AuthorizeHandler{
 		storage:             storage,
 		authenticator:       authenticator,
@@ -81,6 +141,7 @@ func NewAuthorizeHandler(
 		authCodeLifetime:    authCodeLifetime,
 		scopesSupported:     scopesSupported,
 		loginTemplate:       loginTmpl,
+		branding:            branding,
 		csrfTokens:          make(map[string]time.Time),
 	}, nil
 }
@@ -375,6 +436,7 @@ func (h *AuthorizeHandler) showLoginForm(w http.ResponseWriter, req *AuthorizeRe
 		CodeChallengeMethod: req.CodeChallengeMethod,
 		Nonce:               req.Nonce,
 		CSRFToken:           csrfToken,
+		Branding:            h.branding,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -397,6 +459,7 @@ type loginTemplateData struct {
 	CodeChallengeMethod string
 	Nonce               string
 	CSRFToken           string
+	Branding            loginBranding
 }
 
 const defaultLoginTemplate = `<!DOCTYPE html>
@@ -404,7 +467,7 @@ const defaultLoginTemplate = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In - MCP Bridge</title>
+    <title>{{.Branding.PageTitle}}</title>
     <style>
         * {
             box-sizing: border-box;
@@ -413,7 +476,7 @@ const defaultLoginTemplate = `<!DOCTYPE html>
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, {{.Branding.PrimaryColor}} 0%, {{.Branding.SecondaryColor}} 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -472,13 +535,13 @@ const defaultLoginTemplate = `<!DOCTYPE html>
         input[type="text"]:focus,
         input[type="password"]:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: {{.Branding.PrimaryColor}};
+            box-shadow: 0 0 0 3px color-mix(in srgb, {{.Branding.PrimaryColor}} 10%, transparent);
         }
         button {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, {{.Branding.PrimaryColor}} 0%, {{.Branding.SecondaryColor}} 100%);
             color: white;
             border: none;
             border-radius: 8px;
@@ -489,7 +552,7 @@ const defaultLoginTemplate = `<!DOCTYPE html>
         }
         button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 12px color-mix(in srgb, {{.Branding.PrimaryColor}} 40%, transparent);
         }
         button:active {
             transform: translateY(0);
@@ -506,8 +569,8 @@ const defaultLoginTemplate = `<!DOCTYPE html>
 </head>
 <body>
     <div class="container">
-        <h1>Sign In</h1>
-        <p class="subtitle">Authorize access to MCP Bridge</p>
+        <h1>{{.Branding.Heading}}</h1>
+        <p class="subtitle">{{.Branding.Subtitle}}</p>
 
         {{if .Error}}
         <div class="error">{{.Error}}</div>
@@ -525,20 +588,20 @@ const defaultLoginTemplate = `<!DOCTYPE html>
             <input type="hidden" name="nonce" value="{{.Nonce}}">
 
             <div class="form-group">
-                <label for="username">Username</label>
+                <label for="username">{{.Branding.UsernameLabel}}</label>
                 <input type="text" id="username" name="username" autocomplete="username" required autofocus>
             </div>
 
             <div class="form-group">
-                <label for="password">Password</label>
+                <label for="password">{{.Branding.PasswordLabel}}</label>
                 <input type="password" id="password" name="password" autocomplete="current-password" required>
             </div>
 
-            <button type="submit">Sign In</button>
+            <button type="submit">{{.Branding.ButtonText}}</button>
         </form>
 
         <div class="client-info">
-            Signing in to: {{.ClientID}}
+            {{.Branding.FooterText}} {{.ClientID}}
         </div>
     </div>
 </body>

@@ -2726,3 +2726,57 @@ func TestValidateFederatedAuth_TableDriven(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateCSSColor(t *testing.T) {
+	valid := []string{"#fff", "#FFF", "#FF6600", "#667eea", "#667eea80", "#abc", "#AABBCC"}
+	for _, c := range valid {
+		if err := validateCSSColor(c, "test"); err != nil {
+			t.Errorf("expected %q to be valid, got: %v", c, err)
+		}
+	}
+
+	invalid := []string{"red", "667eea", "rgb(1,2,3)", "#gg0000", "#12", "#12345"}
+	for _, c := range invalid {
+		if err := validateCSSColor(c, "test"); err == nil {
+			t.Errorf("expected %q to be invalid", c)
+		}
+	}
+
+	// Empty string is valid (means "use default")
+	if err := validateCSSColor("", "test"); err != nil {
+		t.Errorf("expected empty string to be valid, got: %v", err)
+	}
+}
+
+func TestApplyLoginBrandingDefaults(t *testing.T) {
+	b := &BuiltInAuthConfig{}
+	applyLoginBrandingDefaults(b)
+
+	if b.Branding == nil {
+		t.Fatal("expected branding to be initialized")
+	}
+	if b.Branding.PageTitle != DefaultLoginPageTitle {
+		t.Errorf("expected default page title %q, got %q", DefaultLoginPageTitle, b.Branding.PageTitle)
+	}
+	if b.Branding.PrimaryColor != DefaultLoginPrimaryColor {
+		t.Errorf("expected default primary color %q, got %q", DefaultLoginPrimaryColor, b.Branding.PrimaryColor)
+	}
+
+	// Custom values should not be overwritten
+	b2 := &BuiltInAuthConfig{
+		Branding: &LoginBrandingConfig{
+			Heading:      "Welcome",
+			PrimaryColor: "#ff0000",
+		},
+	}
+	applyLoginBrandingDefaults(b2)
+	if b2.Branding.Heading != "Welcome" {
+		t.Errorf("expected custom heading 'Welcome', got %q", b2.Branding.Heading)
+	}
+	if b2.Branding.PrimaryColor != "#ff0000" {
+		t.Errorf("expected custom primary color '#ff0000', got %q", b2.Branding.PrimaryColor)
+	}
+	if b2.Branding.ButtonText != DefaultLoginButtonText {
+		t.Errorf("expected default button text %q, got %q", DefaultLoginButtonText, b2.Branding.ButtonText)
+	}
+}

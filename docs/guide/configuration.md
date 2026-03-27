@@ -531,6 +531,26 @@ List of users for built-in authentication:
 | `password_env` | Environment variable containing plaintext password (hashed at runtime) |
 | `scopes` | List of scopes to grant this user |
 
+#### oauth_server.builtin.branding
+
+Customize the login page appearance without replacing the template:
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `page_title` | HTML page title | `Sign In - MCP Bridge` |
+| `heading` | Main heading on login form | `Sign In` |
+| `subtitle` | Text below the heading | `Authorize access to MCP Bridge` |
+| `username_label` | Label for username field | `Username` |
+| `password_label` | Label for password field | `Password` |
+| `button_text` | Submit button text | `Sign In` |
+| `footer_text` | Text shown before client ID | `Signing in to:` |
+| `primary_color` | Main accent color (hex) | `#667eea` |
+| `secondary_color` | Gradient end color (hex) | `#764ba2` |
+
+#### oauth_server.builtin.login_template
+
+Path to a custom HTML login page template. When set, replaces the default template entirely. See [Login Page Customization](authentication.md#login-page-customization) for template variables.
+
 ### Federated Mode Configuration
 
 For delegating to an upstream identity provider (Google, Okta, etc.):

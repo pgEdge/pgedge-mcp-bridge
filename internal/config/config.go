@@ -199,6 +199,32 @@ type BuiltInAuthConfig struct {
 
 	// LoginTemplate path to custom login page template
 	LoginTemplate string `yaml:"login_template,omitempty"`
+
+	// Branding customizes the default login page appearance
+	Branding *LoginBrandingConfig `yaml:"branding,omitempty"`
+}
+
+// LoginBrandingConfig customizes the built-in login page appearance.
+// All fields are optional; defaults match the built-in template.
+type LoginBrandingConfig struct {
+	// PageTitle is the HTML page title (default: "Sign In - MCP Bridge")
+	PageTitle string `yaml:"page_title,omitempty"`
+	// Heading is the main heading on the login form (default: "Sign In")
+	Heading string `yaml:"heading,omitempty"`
+	// Subtitle is the text below the heading (default: "Authorize access to MCP Bridge")
+	Subtitle string `yaml:"subtitle,omitempty"`
+	// UsernameLabel is the label for the username field (default: "Username")
+	UsernameLabel string `yaml:"username_label,omitempty"`
+	// PasswordLabel is the label for the password field (default: "Password")
+	PasswordLabel string `yaml:"password_label,omitempty"`
+	// ButtonText is the text on the submit button (default: "Sign In")
+	ButtonText string `yaml:"button_text,omitempty"`
+	// FooterText is the text shown before the client ID in the footer (default: "Signing in to:")
+	FooterText string `yaml:"footer_text,omitempty"`
+	// PrimaryColor is the main accent color as a CSS hex value (default: "#667eea")
+	PrimaryColor string `yaml:"primary_color,omitempty"`
+	// SecondaryColor is the gradient end color as a CSS hex value (default: "#764ba2")
+	SecondaryColor string `yaml:"secondary_color,omitempty"`
 }
 
 // UserConfig for a built-in user

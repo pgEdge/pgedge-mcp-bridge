@@ -301,6 +301,70 @@ htpasswd -nbBC 10 "" 'mypassword' | tr -d ':\n'
 python3 -c "import bcrypt; print(bcrypt.hashpw(b'mypassword', bcrypt.gensalt()).decode())"
 ```
 
+### Login Page Customization
+
+The built-in mode login page can be customized in two ways:
+
+**Branding Configuration** — change text strings and colors without replacing the template:
+
+```yaml
+server:
+  oauth_server:
+    enabled: true
+    mode: builtin
+    builtin:
+      branding:
+        page_title: "Sign In - My Service"
+        heading: "Welcome"
+        subtitle: "Sign in to access the MCP service"
+        username_label: "Email"
+        password_label: "Password"
+        button_text: "Log In"
+        footer_text: "Authenticating for:"
+        primary_color: "#0066cc"
+        secondary_color: "#004499"
+```
+
+All branding fields are optional. Unset fields use the defaults shown below:
+
+| Field | Default |
+|-------|---------|
+| `page_title` | `Sign In - MCP Bridge` |
+| `heading` | `Sign In` |
+| `subtitle` | `Authorize access to MCP Bridge` |
+| `username_label` | `Username` |
+| `password_label` | `Password` |
+| `button_text` | `Sign In` |
+| `footer_text` | `Signing in to:` |
+| `primary_color` | `#667eea` |
+| `secondary_color` | `#764ba2` |
+
+Color values must be CSS hex colors (`#rgb`, `#rrggbb`, or `#rrggbbaa`).
+
+**Custom Template** — for full control over the login page HTML, provide your own template file:
+
+```yaml
+server:
+  oauth_server:
+    enabled: true
+    mode: builtin
+    builtin:
+      login_template: "/etc/pgedge/login.html"
+```
+
+An example custom template is provided at [`examples/oauth/login.html`](https://github.com/pgEdge/pgedge-mcp-bridge/blob/main/examples/oauth/login.html). Use it as a starting point for your own design.
+
+Custom templates use Go's `html/template` syntax and receive the following data:
+
+- `{{.Error}}` — authentication error message (empty on first load)
+- `{{.CSRFToken}}` — CSRF token (must be included as a hidden form field named `csrf_token`)
+- `{{.ClientID}}` — the OAuth client ID
+- `{{.ResponseType}}`, `{{.RedirectURI}}`, `{{.Scope}}`, `{{.State}}`, `{{.CodeChallenge}}`, `{{.CodeChallengeMethod}}`, `{{.Nonce}}` — OAuth parameters (must be preserved as hidden form fields)
+- `{{.Branding.*}}` — all branding fields from configuration (available even in custom templates)
+
+!!! warning
+    Custom templates **must** include the CSRF token and all OAuth hidden form fields for the login flow to work correctly. The form must submit via POST to the same URL.
+
 ### Federated Mode
 
 Federated mode delegates authentication to an upstream identity provider (Google, Okta, etc.):

@@ -46,6 +46,17 @@ const (
 	DefaultOAuthAuthCodeLifetime     = 10 * time.Minute
 	DefaultOAuthSigningAlgorithm     = "RS256"
 	DefaultOAuthServerMode           = "builtin"
+
+	// Login branding defaults
+	DefaultLoginPageTitle      = "Sign In - MCP Bridge"
+	DefaultLoginHeading        = "Sign In"
+	DefaultLoginSubtitle       = "Authorize access to MCP Bridge"
+	DefaultLoginUsernameLabel  = "Username"
+	DefaultLoginPasswordLabel  = "Password"
+	DefaultLoginButtonText     = "Sign In"
+	DefaultLoginFooterText     = "Signing in to:"
+	DefaultLoginPrimaryColor   = "#667eea"
+	DefaultLoginSecondaryColor = "#764ba2"
 )
 
 // DefaultCORSMethods is the default list of allowed HTTP methods
@@ -187,6 +198,43 @@ func applyOAuthServerDefaults(o *OAuthServerConfig) {
 	}
 	if o.Federated != nil && o.Federated.HTTPTimeout == 0 {
 		o.Federated.HTTPTimeout = DefaultOAuthHTTPTimeout
+	}
+	if o.BuiltIn != nil {
+		applyLoginBrandingDefaults(o.BuiltIn)
+	}
+}
+
+func applyLoginBrandingDefaults(b *BuiltInAuthConfig) {
+	if b.Branding == nil {
+		b.Branding = &LoginBrandingConfig{}
+	}
+	br := b.Branding
+	if br.PageTitle == "" {
+		br.PageTitle = DefaultLoginPageTitle
+	}
+	if br.Heading == "" {
+		br.Heading = DefaultLoginHeading
+	}
+	if br.Subtitle == "" {
+		br.Subtitle = DefaultLoginSubtitle
+	}
+	if br.UsernameLabel == "" {
+		br.UsernameLabel = DefaultLoginUsernameLabel
+	}
+	if br.PasswordLabel == "" {
+		br.PasswordLabel = DefaultLoginPasswordLabel
+	}
+	if br.ButtonText == "" {
+		br.ButtonText = DefaultLoginButtonText
+	}
+	if br.FooterText == "" {
+		br.FooterText = DefaultLoginFooterText
+	}
+	if br.PrimaryColor == "" {
+		br.PrimaryColor = DefaultLoginPrimaryColor
+	}
+	if br.SecondaryColor == "" {
+		br.SecondaryColor = DefaultLoginSecondaryColor
 	}
 }
 

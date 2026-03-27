@@ -616,6 +616,7 @@ func TestFullAuthorizationCodeFlow(t *testing.T) {
 		10*time.Minute,
 		[]string{"mcp:read", "mcp:write"},
 		"",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create authorize handler: %v", err)
@@ -1365,6 +1366,7 @@ func TestCSRFToken_GenerateAndValidate(t *testing.T) {
 		10*time.Minute,
 		[]string{"mcp:read"},
 		"",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create handler: %v", err)
@@ -1398,6 +1400,7 @@ func TestCSRFToken_InvalidToken(t *testing.T) {
 		10*time.Minute,
 		[]string{"mcp:read"},
 		"",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create handler: %v", err)
@@ -1420,6 +1423,7 @@ func TestCSRFToken_Expiry(t *testing.T) {
 		10*time.Minute,
 		[]string{"mcp:read"},
 		"",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create handler: %v", err)
@@ -3111,6 +3115,7 @@ func newTestAuthorizeHandler(t *testing.T) *AuthorizeHandler {
 		10*time.Minute,
 		[]string{"mcp:read", "mcp:write"},
 		"",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create authorize handler: %v", err)
@@ -3139,6 +3144,7 @@ func TestNewAuthorizeHandler_InvalidTemplatePath(t *testing.T) {
 		10*time.Minute,
 		[]string{"mcp:read"},
 		"/nonexistent/path/to/template.html",
+		nil,
 	)
 	if err == nil {
 		t.Error("expected error for invalid template path")
@@ -3156,6 +3162,7 @@ func TestNewAuthorizeHandler_DefaultTemplate(t *testing.T) {
 		10*time.Minute,
 		[]string{"mcp:read"},
 		"",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -5805,5 +5812,64 @@ func TestGenerateSecureToken_DifferentLengths(t *testing.T) {
 	if len(token16) >= len(token32) {
 		t.Errorf("expected 16-byte token (%d chars) to be shorter than 32-byte token (%d chars)",
 			len(token16), len(token32))
+	}
+}
+
+func TestNewAuthorizeHandler_WithBranding(t *testing.T) {
+	storage := NewMemoryStorage(5 * time.Minute)
+	defer storage.Close()
+
+	branding := &config.LoginBrandingConfig{
+		Heading:      "Welcome",
+		PrimaryColor: "#ff6600",
+	}
+	h, err := NewAuthorizeHandler(
+		storage,
+		nil,
+		[]string{"https://example.com/callback"},
+		10*time.Minute,
+		[]string{"mcp:read"},
+		"",
+		branding,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if h.branding.Heading != "Welcome" {
+		t.Errorf("expected heading 'Welcome', got %q", h.branding.Heading)
+	}
+	if h.branding.PrimaryColor != "#ff6600" {
+		t.Errorf("expected primary color '#ff6600', got %q", h.branding.PrimaryColor)
+	}
+	// Defaults should be applied for unset fields
+	if h.branding.ButtonText != "Sign In" {
+		t.Errorf("expected default button text 'Sign In', got %q", h.branding.ButtonText)
+	}
+	if h.branding.SecondaryColor != "#764ba2" {
+		t.Errorf("expected default secondary color '#764ba2', got %q", h.branding.SecondaryColor)
+	}
+}
+
+func TestNewAuthorizeHandler_NilBrandingUsesDefaults(t *testing.T) {
+	storage := NewMemoryStorage(5 * time.Minute)
+	defer storage.Close()
+
+	h, err := NewAuthorizeHandler(
+		storage,
+		nil,
+		[]string{"https://example.com/callback"},
+		10*time.Minute,
+		[]string{"mcp:read"},
+		"",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if h.branding.Heading != "Sign In" {
+		t.Errorf("expected default heading 'Sign In', got %q", h.branding.Heading)
+	}
+	if h.branding.PrimaryColor != "#667eea" {
+		t.Errorf("expected default primary color '#667eea', got %q", h.branding.PrimaryColor)
 	}
 }

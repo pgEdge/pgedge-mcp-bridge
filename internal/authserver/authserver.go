@@ -105,8 +105,10 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 		}
 
 		var loginTemplate string
+		var branding *config.LoginBrandingConfig
 		if cfg.BuiltIn != nil {
 			loginTemplate = cfg.BuiltIn.LoginTemplate
+			branding = cfg.BuiltIn.Branding
 		}
 		server.builtinAuthorizeHandler, err = NewAuthorizeHandler(
 			storage,
@@ -115,6 +117,7 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 			cfg.AuthCodeLifetime,
 			cfg.ScopesSupported,
 			loginTemplate,
+			branding,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("creating authorize handler: %w", err)

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -369,6 +370,28 @@ func validateBuiltInAuth(b *BuiltInAuthConfig) error {
 		}
 	}
 
+	// Validate branding colors if specified
+	if b.Branding != nil {
+		if err := validateCSSColor(b.Branding.PrimaryColor, "branding.primary_color"); err != nil {
+			return err
+		}
+		if err := validateCSSColor(b.Branding.SecondaryColor, "branding.secondary_color"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+var cssColorPattern = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`)
+
+func validateCSSColor(value, fieldName string) error {
+	if value == "" {
+		return nil
+	}
+	if !cssColorPattern.MatchString(value) {
+		return fmt.Errorf("%s: must be a valid hex color (e.g., #667eea), got: %s", fieldName, value)
+	}
 	return nil
 }
 

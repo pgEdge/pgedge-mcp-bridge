@@ -108,6 +108,18 @@ server:
       # Optional: Custom login page template
       # login_template: "/etc/pgedge/login.html"
 
+      # Optional: Customize the login page appearance
+      # branding:
+      #   page_title: "Sign In - My Service"
+      #   heading: "Welcome"
+      #   subtitle: "Sign in to access the MCP service"
+      #   username_label: "Email"
+      #   password_label: "Password"
+      #   button_text: "Log In"
+      #   footer_text: "Authenticating for:"
+      #   primary_color: "#0066cc"
+      #   secondary_color: "#004499"
+
     # Allowed redirect URIs - must include Claude's callback
     allowed_redirect_uris:
       - "https://claude.ai/api/mcp/auth_callback"
