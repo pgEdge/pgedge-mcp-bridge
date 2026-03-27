@@ -1306,7 +1306,7 @@ func TestServer_StopWithNilContextCreatesOwnTimeout(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Stop with nil context - should not panic and should create its own timeout
-	err = server.Stop(nil)
+	err = server.Stop(nil) //nolint:staticcheck // intentionally testing nil context handling
 	if err != nil {
 		t.Errorf("Stop(nil) error = %v", err)
 	}
