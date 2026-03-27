@@ -2181,3 +2181,548 @@ func TestConfigTypes_Initialization(t *testing.T) {
 		t.Errorf("expected ClientID 'my-client', got '%s'", cfg.Client.Auth.OAuth.ClientID)
 	}
 }
+
+// ===========================================================================
+// OAuth Server Defaults Tests
+// ===========================================================================
+
+func TestApplyOAuthServerDefaults_AllDefaults(t *testing.T) {
+	o := &OAuthServerConfig{}
+	applyOAuthServerDefaults(o)
+
+	if o.Mode != DefaultOAuthServerMode {
+		t.Errorf("expected default mode '%s', got '%s'", DefaultOAuthServerMode, o.Mode)
+	}
+	if o.TokenLifetime != DefaultOAuthTokenLifetime {
+		t.Errorf("expected default token_lifetime %v, got %v", DefaultOAuthTokenLifetime, o.TokenLifetime)
+	}
+	if o.RefreshTokenLifetime != DefaultOAuthRefreshTokenLifetime {
+		t.Errorf("expected default refresh_token_lifetime %v, got %v", DefaultOAuthRefreshTokenLifetime, o.RefreshTokenLifetime)
+	}
+	if o.AuthCodeLifetime != DefaultOAuthAuthCodeLifetime {
+		t.Errorf("expected default auth_code_lifetime %v, got %v", DefaultOAuthAuthCodeLifetime, o.AuthCodeLifetime)
+	}
+	if len(o.ScopesSupported) != len(DefaultOAuthScopes) {
+		t.Errorf("expected default scopes %v, got %v", DefaultOAuthScopes, o.ScopesSupported)
+	}
+	if len(o.AllowedRedirectURIs) != len(DefaultOAuthRedirectURIs) {
+		t.Errorf("expected default redirect URIs %v, got %v", DefaultOAuthRedirectURIs, o.AllowedRedirectURIs)
+	}
+}
+
+func TestApplyOAuthServerDefaults_ExplicitValuesNotOverridden(t *testing.T) {
+	o := &OAuthServerConfig{
+		Mode:                 "federated",
+		TokenLifetime:        2 * time.Hour,
+		RefreshTokenLifetime: 48 * time.Hour,
+		AuthCodeLifetime:     5 * time.Minute,
+		ScopesSupported:      []string{"custom:scope"},
+		AllowedRedirectURIs:  []string{"https://custom.example.com/callback"},
+	}
+	applyOAuthServerDefaults(o)
+
+	if o.Mode != "federated" {
+		t.Errorf("expected mode 'federated', got '%s'", o.Mode)
+	}
+	if o.TokenLifetime != 2*time.Hour {
+		t.Errorf("expected token_lifetime 2h, got %v", o.TokenLifetime)
+	}
+	if o.RefreshTokenLifetime != 48*time.Hour {
+		t.Errorf("expected refresh_token_lifetime 48h, got %v", o.RefreshTokenLifetime)
+	}
+	if o.AuthCodeLifetime != 5*time.Minute {
+		t.Errorf("expected auth_code_lifetime 5m, got %v", o.AuthCodeLifetime)
+	}
+	if len(o.ScopesSupported) != 1 || o.ScopesSupported[0] != "custom:scope" {
+		t.Errorf("expected custom scopes, got %v", o.ScopesSupported)
+	}
+	if len(o.AllowedRedirectURIs) != 1 || o.AllowedRedirectURIs[0] != "https://custom.example.com/callback" {
+		t.Errorf("expected custom redirect URIs, got %v", o.AllowedRedirectURIs)
+	}
+}
+
+func TestApplyOAuthServerDefaults_SigningAlgorithmDefault(t *testing.T) {
+	o := &OAuthServerConfig{
+		Signing: &SigningConfig{},
+	}
+	applyOAuthServerDefaults(o)
+
+	if o.Signing.Algorithm != DefaultOAuthSigningAlgorithm {
+		t.Errorf("expected default signing algorithm '%s', got '%s'", DefaultOAuthSigningAlgorithm, o.Signing.Algorithm)
+	}
+}
+
+func TestApplyOAuthServerDefaults_SigningAlgorithmNotOverridden(t *testing.T) {
+	o := &OAuthServerConfig{
+		Signing: &SigningConfig{Algorithm: "ES256"},
+	}
+	applyOAuthServerDefaults(o)
+
+	if o.Signing.Algorithm != "ES256" {
+		t.Errorf("expected signing algorithm 'ES256', got '%s'", o.Signing.Algorithm)
+	}
+}
+
+func TestApplyOAuthServerDefaults_FederatedHTTPTimeout(t *testing.T) {
+	o := &OAuthServerConfig{
+		Federated: &FederatedAuthConfig{},
+	}
+	applyOAuthServerDefaults(o)
+
+	if o.Federated.HTTPTimeout != DefaultOAuthHTTPTimeout {
+		t.Errorf("expected default federated HTTP timeout %v, got %v", DefaultOAuthHTTPTimeout, o.Federated.HTTPTimeout)
+	}
+}
+
+func TestApplyOAuthServerDefaults_FederatedHTTPTimeoutNotOverridden(t *testing.T) {
+	o := &OAuthServerConfig{
+		Federated: &FederatedAuthConfig{HTTPTimeout: 60 * time.Second},
+	}
+	applyOAuthServerDefaults(o)
+
+	if o.Federated.HTTPTimeout != 60*time.Second {
+		t.Errorf("expected federated HTTP timeout 60s, got %v", o.Federated.HTTPTimeout)
+	}
+}
+
+// ===========================================================================
+// OAuth Server Validation Tests
+// ===========================================================================
+
+func TestValidateOAuthServer_TableDriven(t *testing.T) {
+	tmpDir := t.TempDir()
+	keyFile := filepath.Join(tmpDir, "key.pem")
+	os.WriteFile(keyFile, []byte("key content"), 0644)
+
+	testCases := []struct {
+		name        string
+		config      *OAuthServerConfig
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "missing issuer",
+			config: &OAuthServerConfig{
+				Mode:    "builtin",
+				Signing: &SigningConfig{Algorithm: "RS256", GenerateKey: true},
+				BuiltIn: &BuiltInAuthConfig{
+					Users: []UserConfig{{Username: "admin", PasswordHash: "$2a$10$hash"}},
+				},
+			},
+			wantErr:     true,
+			errContains: "issuer is required",
+		},
+		{
+			name: "invalid mode",
+			config: &OAuthServerConfig{
+				Issuer:  "https://example.com",
+				Mode:    "invalid",
+				Signing: &SigningConfig{Algorithm: "RS256", GenerateKey: true},
+			},
+			wantErr:     true,
+			errContains: "invalid mode",
+		},
+		{
+			name: "missing signing config",
+			config: &OAuthServerConfig{
+				Issuer: "https://example.com",
+				Mode:   "builtin",
+			},
+			wantErr:     true,
+			errContains: "signing configuration is required",
+		},
+		{
+			name: "builtin mode without builtin config",
+			config: &OAuthServerConfig{
+				Issuer:  "https://example.com",
+				Mode:    "builtin",
+				Signing: &SigningConfig{Algorithm: "RS256", GenerateKey: true},
+			},
+			wantErr:     true,
+			errContains: "builtin configuration is required",
+		},
+		{
+			name: "federated mode without federated config",
+			config: &OAuthServerConfig{
+				Issuer:  "https://example.com",
+				Mode:    "federated",
+				Signing: &SigningConfig{Algorithm: "RS256", GenerateKey: true},
+			},
+			wantErr:     true,
+			errContains: "federated configuration is required",
+		},
+		{
+			name: "invalid redirect URI",
+			config: &OAuthServerConfig{
+				Issuer:  "https://example.com",
+				Mode:    "builtin",
+				Signing: &SigningConfig{Algorithm: "RS256", GenerateKey: true},
+				BuiltIn: &BuiltInAuthConfig{
+					Users: []UserConfig{{Username: "admin", PasswordHash: "$2a$10$hash"}},
+				},
+				AllowedRedirectURIs: []string{"https://valid.example.com/callback", "://invalid\x00uri"},
+			},
+			wantErr:     true,
+			errContains: "invalid redirect URI",
+		},
+		{
+			name: "valid builtin configuration",
+			config: &OAuthServerConfig{
+				Issuer:  "https://example.com",
+				Mode:    "builtin",
+				Signing: &SigningConfig{Algorithm: "RS256", GenerateKey: true},
+				BuiltIn: &BuiltInAuthConfig{
+					Users: []UserConfig{{Username: "admin", PasswordHash: "$2a$10$hash"}},
+				},
+				AllowedRedirectURIs: []string{"https://claude.ai/api/mcp/auth_callback"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid federated configuration",
+			config: &OAuthServerConfig{
+				Issuer:  "https://example.com",
+				Mode:    "federated",
+				Signing: &SigningConfig{Algorithm: "ES256", GenerateKey: true},
+				Federated: &FederatedAuthConfig{
+					UpstreamIssuer: "https://accounts.google.com",
+					ClientID:       "my-client-id",
+					ClientSecret:   "my-secret",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid builtin with key file",
+			config: &OAuthServerConfig{
+				Issuer:  "https://example.com",
+				Mode:    "builtin",
+				Signing: &SigningConfig{Algorithm: "RS256", KeyFile: keyFile},
+				BuiltIn: &BuiltInAuthConfig{
+					Users: []UserConfig{{Username: "admin", PasswordHash: "$2a$10$hash"}},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateOAuthServer(tc.config)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("expected error to contain '%s', got: %v", tc.errContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// ===========================================================================
+// Signing Validation Tests
+// ===========================================================================
+
+func TestValidateSigning_TableDriven(t *testing.T) {
+	tmpDir := t.TempDir()
+	keyFile := filepath.Join(tmpDir, "key.pem")
+	os.WriteFile(keyFile, []byte("key content"), 0644)
+
+	testCases := []struct {
+		name        string
+		config      *SigningConfig
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "invalid algorithm",
+			config:      &SigningConfig{Algorithm: "HS256", GenerateKey: true},
+			wantErr:     true,
+			errContains: "invalid algorithm",
+		},
+		{
+			name:        "missing key_file and generate_key false",
+			config:      &SigningConfig{Algorithm: "RS256"},
+			wantErr:     true,
+			errContains: "either key_file or generate_key must be specified",
+		},
+		{
+			name:        "key file does not exist",
+			config:      &SigningConfig{Algorithm: "RS256", KeyFile: "/nonexistent/key.pem"},
+			wantErr:     true,
+			errContains: "key_file does not exist",
+		},
+		{
+			name:    "valid with generate_key",
+			config:  &SigningConfig{Algorithm: "RS256", GenerateKey: true},
+			wantErr: false,
+		},
+		{
+			name:    "valid with existing key file",
+			config:  &SigningConfig{Algorithm: "RS256", KeyFile: keyFile},
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateSigning(tc.config)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("expected error to contain '%s', got: %v", tc.errContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateSigning_AllValidAlgorithms(t *testing.T) {
+	validAlgorithms := []string{"RS256", "RS384", "RS512", "ES256", "ES384", "ES512"}
+
+	for _, alg := range validAlgorithms {
+		t.Run(alg, func(t *testing.T) {
+			cfg := &SigningConfig{Algorithm: alg, GenerateKey: true}
+			err := validateSigning(cfg)
+			if err != nil {
+				t.Errorf("expected no error for algorithm %s, got: %v", alg, err)
+			}
+		})
+	}
+}
+
+// ===========================================================================
+// Built-in Auth Validation Tests
+// ===========================================================================
+
+func TestValidateBuiltInAuth_TableDriven(t *testing.T) {
+	tmpDir := t.TempDir()
+	templateFile := filepath.Join(tmpDir, "login.html")
+	os.WriteFile(templateFile, []byte("<html>login</html>"), 0644)
+
+	testCases := []struct {
+		name        string
+		setupEnv    map[string]string
+		config      *BuiltInAuthConfig
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "no users",
+			config:      &BuiltInAuthConfig{Users: []UserConfig{}},
+			wantErr:     true,
+			errContains: "at least one user is required",
+		},
+		{
+			name: "empty username",
+			config: &BuiltInAuthConfig{
+				Users: []UserConfig{{Username: "", PasswordHash: "$2a$10$hash"}},
+			},
+			wantErr:     true,
+			errContains: "username is required",
+		},
+		{
+			name: "duplicate usernames",
+			config: &BuiltInAuthConfig{
+				Users: []UserConfig{
+					{Username: "admin", PasswordHash: "$2a$10$hash1"},
+					{Username: "admin", PasswordHash: "$2a$10$hash2"},
+				},
+			},
+			wantErr:     true,
+			errContains: "duplicate username: admin",
+		},
+		{
+			name: "missing password_hash and password_env",
+			config: &BuiltInAuthConfig{
+				Users: []UserConfig{{Username: "admin"}},
+			},
+			wantErr:     true,
+			errContains: "either password_hash or password_env is required",
+		},
+		{
+			name: "login template does not exist",
+			config: &BuiltInAuthConfig{
+				Users:         []UserConfig{{Username: "admin", PasswordHash: "$2a$10$hash"}},
+				LoginTemplate: "/nonexistent/login.html",
+			},
+			wantErr:     true,
+			errContains: "login_template does not exist",
+		},
+		{
+			name: "password_env with unset env var",
+			config: &BuiltInAuthConfig{
+				Users: []UserConfig{{Username: "admin", PasswordEnv: "UNSET_PASSWORD_VAR_FOR_TEST"}},
+			},
+			wantErr:     true,
+			errContains: "environment variable UNSET_PASSWORD_VAR_FOR_TEST is not set",
+		},
+		{
+			name: "valid configuration with password_hash",
+			config: &BuiltInAuthConfig{
+				Users: []UserConfig{
+					{Username: "admin", PasswordHash: "$2a$10$hash", Scopes: []string{"mcp:read", "mcp:write"}},
+					{Username: "readonly", PasswordHash: "$2a$10$hash2", Scopes: []string{"mcp:read"}},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:     "valid configuration with password_env",
+			setupEnv: map[string]string{"TEST_BUILTIN_PASSWORD": "secret"},
+			config: &BuiltInAuthConfig{
+				Users: []UserConfig{
+					{Username: "admin", PasswordEnv: "TEST_BUILTIN_PASSWORD"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid configuration with login template",
+			config: &BuiltInAuthConfig{
+				Users:         []UserConfig{{Username: "admin", PasswordHash: "$2a$10$hash"}},
+				LoginTemplate: templateFile,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.setupEnv {
+				t.Setenv(k, v)
+			}
+			err := validateBuiltInAuth(tc.config)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("expected error to contain '%s', got: %v", tc.errContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// ===========================================================================
+// Federated Auth Validation Tests
+// ===========================================================================
+
+func TestValidateFederatedAuth_TableDriven(t *testing.T) {
+	testCases := []struct {
+		name        string
+		setupEnv    map[string]string
+		config      *FederatedAuthConfig
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "missing upstream_issuer",
+			config: &FederatedAuthConfig{
+				ClientID:     "my-client",
+				ClientSecret: "my-secret",
+			},
+			wantErr:     true,
+			errContains: "upstream_issuer is required",
+		},
+		{
+			name: "missing client_id",
+			config: &FederatedAuthConfig{
+				UpstreamIssuer: "https://accounts.google.com",
+				ClientSecret:   "my-secret",
+			},
+			wantErr:     true,
+			errContains: "client_id is required",
+		},
+		{
+			name: "missing both client_secret and client_secret_env",
+			config: &FederatedAuthConfig{
+				UpstreamIssuer: "https://accounts.google.com",
+				ClientID:       "my-client",
+			},
+			wantErr:     true,
+			errContains: "either client_secret or client_secret_env is required",
+		},
+		{
+			name: "client_secret_env with unset env var",
+			config: &FederatedAuthConfig{
+				UpstreamIssuer:  "https://accounts.google.com",
+				ClientID:        "my-client",
+				ClientSecretEnv: "UNSET_CLIENT_SECRET_VAR_FOR_TEST",
+			},
+			wantErr:     true,
+			errContains: "environment variable UNSET_CLIENT_SECRET_VAR_FOR_TEST is not set",
+		},
+		{
+			name: "valid with client_secret",
+			config: &FederatedAuthConfig{
+				UpstreamIssuer: "https://accounts.google.com",
+				ClientID:       "my-client",
+				ClientSecret:   "my-secret",
+			},
+			wantErr: false,
+		},
+		{
+			name:     "valid with client_secret_env",
+			setupEnv: map[string]string{"TEST_FEDERATED_SECRET": "my-secret"},
+			config: &FederatedAuthConfig{
+				UpstreamIssuer:  "https://accounts.google.com",
+				ClientID:        "my-client",
+				ClientSecretEnv: "TEST_FEDERATED_SECRET",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid with all optional fields",
+			config: &FederatedAuthConfig{
+				UpstreamIssuer: "https://accounts.google.com",
+				ClientID:       "my-client",
+				ClientSecret:   "my-secret",
+				Scopes:         []string{"openid", "email", "profile"},
+				AllowedDomains: []string{"example.com"},
+				DefaultScopes:  []string{"mcp:read"},
+				AdminUsers:     []string{"admin@example.com"},
+				AdminScopes:    []string{"mcp:write", "mcp:admin"},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.setupEnv {
+				t.Setenv(k, v)
+			}
+			err := validateFederatedAuth(tc.config)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("expected error to contain '%s', got: %v", tc.errContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}

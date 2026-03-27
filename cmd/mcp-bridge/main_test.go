@@ -17,7 +17,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/pgEdge/pgedge-mcp-bridge/pkg/version"
 )
@@ -677,4 +679,217 @@ func TestRun_DirectoryAsConfigFile(t *testing.T) {
 	if !strings.Contains(stderr, "Error") {
 		t.Errorf("expected error message for directory as config, got:\n%s", stderr)
 	}
+}
+
+// ===========================================================================
+// Server Mode Tests
+// ===========================================================================
+
+func TestRun_ServerMode_BadCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	content := `mode: server
+server:
+  listen: "127.0.0.1:0"
+  mcp_server:
+    command: "/nonexistent/command/that/does/not/exist"
+    graceful_shutdown_timeout: 1s
+  session:
+    enabled: true
+    timeout: 5m
+    max_sessions: 10
+    cleanup_interval: 1m
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// This runs synchronously because the bad command fails immediately
+	// during server.Start(), which sends error to errCh and run() exits.
+	_, stderr, exitCode := captureOutput(t, func() int {
+		return withArgs(t, []string{"mcp-bridge", "-c", configPath}, run)
+	})
+
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1 for bad command, got %d", exitCode)
+	}
+
+	// Should contain an error about the subprocess
+	_ = stderr
+}
+
+func TestRun_MissingConfigFile_NoDefaultLocations(t *testing.T) {
+	// This test ensures that when no -c is given and no config exists
+	// in default locations, we get exit code 1.
+	tmpDir := t.TempDir()
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	_, stderr, exitCode := captureOutput(t, func() int {
+		return withArgs(t, []string{"mcp-bridge"}, run)
+	})
+
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1, got %d", exitCode)
+	}
+
+	if !strings.Contains(stderr, "config") {
+		t.Errorf("expected error mentioning config, got:\n%s", stderr)
+	}
+}
+
+func TestRun_InvalidYAMLContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// Write content that is clearly not valid YAML
+	content := "{{{{invalid yaml content::::"
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, stderr, exitCode := captureOutput(t, func() int {
+		return withArgs(t, []string{"mcp-bridge", "-c", configPath}, run)
+	})
+
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1 for invalid YAML, got %d", exitCode)
+	}
+
+	if !strings.Contains(stderr, "Error") {
+		t.Errorf("expected error message, got:\n%s", stderr)
+	}
+}
+
+func TestRun_ServerMode_MissingServerSection(t *testing.T) {
+	// A valid mode=server but server section is nil triggers error in run()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	content := `mode: server`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, stderr, exitCode := captureOutput(t, func() int {
+		return withArgs(t, []string{"mcp-bridge", "-c", configPath}, run)
+	})
+
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1, got %d", exitCode)
+	}
+
+	combinedOutput := stderr
+	if !strings.Contains(combinedOutput, "Error") {
+		t.Errorf("expected error about missing server config, got:\n%s", combinedOutput)
+	}
+}
+
+func TestRun_ClientMode_MissingClientSection(t *testing.T) {
+	// A valid mode=client but client section is nil triggers error in run()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	content := `mode: client`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, stderr, exitCode := captureOutput(t, func() int {
+		return withArgs(t, []string{"mcp-bridge", "-c", configPath}, run)
+	})
+
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1, got %d", exitCode)
+	}
+
+	combinedOutput := stderr
+	if !strings.Contains(combinedOutput, "Error") {
+		t.Errorf("expected error about missing client config, got:\n%s", combinedOutput)
+	}
+}
+func TestRun_ServerMode_StartsAndStopsCleanly(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// A minimal server config that uses "cat" as MCP server command.
+	// "cat" reads stdin forever, which keeps the subprocess alive until killed.
+	content := `mode: server
+log:
+  level: error
+  format: text
+  output: stderr
+server:
+  listen: "127.0.0.1:0"
+  mcp_server:
+    command: "cat"
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	doneCh := make(chan int, 1)
+	go func() {
+		_, _, exitCode := captureOutput(t, func() int {
+			return withArgs(t, []string{"mcp-bridge", "-c", configPath}, run)
+		})
+		doneCh <- exitCode
+	}()
+
+	// Give the server a moment to start, then send SIGINT to trigger shutdown
+	time.Sleep(300 * time.Millisecond)
+
+	// Send SIGINT to our own process to trigger graceful shutdown
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatalf("failed to find process: %v", err)
+	}
+	p.Signal(syscall.SIGINT)
+
+	select {
+	case exitCode := <-doneCh:
+		if exitCode != 0 {
+			t.Errorf("expected exit code 0, got %d", exitCode)
+		}
+	case <-time.After(10 * time.Second):
+		t.Error("server did not stop within timeout")
+	}
+}
+
+func TestRun_ServerMode_InvalidServerConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// Server config with missing command
+	content := `mode: server
+log:
+  level: error
+  format: text
+  output: stderr
+server:
+  listen: "127.0.0.1:0"
+  mcp_server:
+    command: ""
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, stderr, exitCode := captureOutput(t, func() int {
+		return withArgs(t, []string{"mcp-bridge", "-c", configPath}, run)
+	})
+
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1, got %d", exitCode)
+	}
+
+	_ = stderr // Error is logged
 }

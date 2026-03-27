@@ -1980,3 +1980,268 @@ func TestOAuthAuthenticator_ExchangeWithExpiresIn(t *testing.T) {
 		t.Error("token expiry should be set")
 	}
 }
+
+// TestOAuthAuthenticator_Validate_NoVerifier tests that when server mode has no OIDC verifier,
+// validation falls back to introspection.
+func TestOAuthAuthenticator_Validate_NoVerifier(t *testing.T) {
+	introspectionServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		token := r.FormValue("token")
+		if token != "fallback-token" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{"active": false})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"active":    true,
+			"sub":       "introspected-user",
+			"scope":     "admin",
+			"client_id": "test-client",
+		})
+	}))
+	defer introspectionServer.Close()
+
+	cfg := &config.OAuthConfig{
+		IntrospectionURL: introspectionServer.URL,
+	}
+
+	oa, err := NewOAuthAuthenticator(cfg, true)
+	if err != nil {
+		t.Fatalf("NewOAuthAuthenticator() error = %v", err)
+	}
+	defer oa.Close()
+
+	// Confirm there is no OIDC verifier set (introspection-only mode)
+	if oa.oidcVerifier != nil {
+		t.Fatal("expected oidcVerifier to be nil in introspection-only mode")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer fallback-token")
+
+	principal, err := oa.Validate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	if principal.ID != "introspected-user" {
+		t.Errorf("Principal.ID = %q, want %q", principal.ID, "introspected-user")
+	}
+	if !principal.HasAllScopes("admin") {
+		t.Errorf("Principal.Scopes = %v, want [admin]", principal.Scopes)
+	}
+	if principal.Metadata["client_id"] != "test-client" {
+		t.Errorf("Metadata[client_id] = %q, want %q", principal.Metadata["client_id"], "test-client")
+	}
+}
+
+// TestOAuthAuthenticator_Validate_InvalidBearerFormat tests that malformed Authorization
+// headers return the appropriate error.
+func TestOAuthAuthenticator_Validate_InvalidBearerFormat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := &config.OAuthConfig{
+		IntrospectionURL: server.URL,
+	}
+
+	oa, err := NewOAuthAuthenticator(cfg, true)
+	if err != nil {
+		t.Fatalf("NewOAuthAuthenticator() error = %v", err)
+	}
+	defer oa.Close()
+
+	tests := []struct {
+		name       string
+		authHeader string
+		wantErr    error
+	}{
+		{
+			name:       "empty header",
+			authHeader: "",
+			wantErr:    ErrMissingCredentials,
+		},
+		{
+			name:       "too short",
+			authHeader: "Bear",
+			wantErr:    ErrInvalidToken,
+		},
+		{
+			name:       "wrong scheme",
+			authHeader: "Basic dXNlcjpwYXNz",
+			wantErr:    ErrInvalidToken,
+		},
+		{
+			name:       "bearer with empty token",
+			authHeader: "Bearer ",
+			wantErr:    ErrMissingCredentials,
+		},
+		{
+			name:       "bearer with only spaces",
+			authHeader: "Bearer    ",
+			wantErr:    ErrMissingCredentials,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+
+			_, err := oa.Validate(context.Background(), req)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("Validate() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestOAuthAuthenticator_GetToken_CachedToken tests that getToken returns a cached
+// non-expired token without making any refresh calls.
+func TestOAuthAuthenticator_GetToken_CachedToken(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "valid-cached-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer server.Close()
+
+	cfg := &config.OAuthConfig{
+		ClientID:     "client",
+		ClientSecret: "secret",
+		TokenURL:     server.URL,
+	}
+
+	oa, err := NewOAuthAuthenticator(cfg, false)
+	if err != nil {
+		t.Fatalf("NewOAuthAuthenticator() error = %v", err)
+	}
+	defer oa.Close()
+
+	// Record call count after initial setup
+	initialCount := callCount
+
+	// The token is valid (expires in 1 hour), so getToken should return cached version
+	token, err := oa.getToken(context.Background())
+	if err != nil {
+		t.Fatalf("getToken() error = %v", err)
+	}
+
+	if token.AccessToken != "valid-cached-token" {
+		t.Errorf("AccessToken = %q, want %q", token.AccessToken, "valid-cached-token")
+	}
+
+	// No additional calls should have been made
+	if callCount != initialCount {
+		t.Errorf("expected no additional token endpoint calls, got %d", callCount-initialCount)
+	}
+
+	// Call again to confirm caching still works
+	token2, err := oa.getToken(context.Background())
+	if err != nil {
+		t.Fatalf("getToken() second call error = %v", err)
+	}
+
+	if token2.AccessToken != token.AccessToken {
+		t.Errorf("second call returned different token: %q vs %q", token2.AccessToken, token.AccessToken)
+	}
+
+	if callCount != initialCount {
+		t.Errorf("expected no additional calls after second getToken, got %d", callCount-initialCount)
+	}
+}
+
+// TestOAuthAuthenticator_GetToken_FromTokenSource tests that when the current token is
+// expired, getToken fetches a new one from the tokenSource.
+func TestOAuthAuthenticator_GetToken_FromTokenSource(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "refreshed-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	defer server.Close()
+
+	cfg := &config.OAuthConfig{
+		ClientID:     "client",
+		ClientSecret: "secret",
+		TokenURL:     server.URL,
+	}
+
+	oa, err := NewOAuthAuthenticator(cfg, false)
+	if err != nil {
+		t.Fatalf("NewOAuthAuthenticator() error = %v", err)
+	}
+	defer oa.Close()
+
+	// Force the current token to be expired
+	oa.mu.Lock()
+	oa.currentToken.Expiry = time.Now().Add(-1 * time.Hour)
+	oa.mu.Unlock()
+
+	initialCount := callCount
+
+	// getToken should detect the expired token and refresh via tokenSource
+	token, err := oa.getToken(context.Background())
+	if err != nil {
+		t.Fatalf("getToken() error = %v", err)
+	}
+
+	if token.AccessToken != "refreshed-token" {
+		t.Errorf("AccessToken = %q, want %q", token.AccessToken, "refreshed-token")
+	}
+
+	// At least one additional call should have been made to refresh
+	if callCount <= initialCount {
+		t.Error("expected at least one additional token endpoint call for refresh")
+	}
+}
+
+// TestGeneratePKCEVerifier_Length tests that PKCE verifier and challenge meet
+// the length requirements specified in RFC 7636.
+func TestGeneratePKCEVerifier_Length(t *testing.T) {
+	// Run multiple times to ensure consistency
+	for i := 0; i < 20; i++ {
+		verifier, err := GeneratePKCEVerifier()
+		if err != nil {
+			t.Fatalf("GeneratePKCEVerifier() iteration %d error = %v", i, err)
+		}
+
+		// RFC 7636 requires verifier to be 43-128 characters
+		if len(verifier) < 43 {
+			t.Errorf("iteration %d: verifier length = %d, want >= 43", i, len(verifier))
+		}
+		if len(verifier) > 128 {
+			t.Errorf("iteration %d: verifier length = %d, want <= 128", i, len(verifier))
+		}
+
+		// Generate challenge from verifier
+		challenge := GeneratePKCEChallenge(verifier)
+
+		// SHA256 hash (32 bytes) base64url encoded without padding = 43 characters
+		if len(challenge) != 43 {
+			t.Errorf("iteration %d: challenge length = %d, want 43", i, len(challenge))
+		}
+
+		// Challenge should only contain base64url characters
+		for _, c := range challenge {
+			if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+				t.Errorf("iteration %d: challenge contains invalid character: %c", i, c)
+			}
+		}
+	}
+}

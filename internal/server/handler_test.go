@@ -2068,3 +2068,299 @@ func TestMCPHandler_HandlePost_AcceptHeaderVariations(t *testing.T) {
 		})
 	}
 }
+
+// TestMCPHandler_HandleSSE_KeepalivePing tests that the SSE handler sends keepalive pings
+func TestMCPHandler_HandleSSE_KeepalivePing(t *testing.T) {
+	pm := newTestMockProcessManager()
+	defer pm.Close()
+
+	sm := NewSessionManager(config.SessionConfig{
+		Enabled:     true,
+		Timeout:     30 * time.Minute,
+		MaxSessions: 100,
+	})
+	logger := createTestLogger()
+
+	// Create handler with a very short keepalive interval
+	handler := NewMCPHandler(pm, sm, logger, 0, 100*time.Millisecond)
+
+	// Create a session first
+	session, err := sm.CreateSession()
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	// Create request with cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/mcp", nil).WithContext(ctx)
+	req.Header.Set("Accept", ContentTypeSSE)
+	req.Header.Set(MCPSessionIDHeader, session.ID)
+
+	rr := newSyncMockFlusherRecorder()
+
+	// Run handler in goroutine since it blocks
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSE(rr, req)
+		close(done)
+	}()
+
+	// Wait long enough for at least one keepalive ping to be sent
+	// (keepalive interval is 100ms, so 350ms should be enough for 2-3 pings)
+	time.Sleep(350 * time.Millisecond)
+
+	// Cancel the context to close the connection
+	cancel()
+
+	// Wait for handler to finish
+	select {
+	case <-done:
+		// Good
+	case <-time.After(2 * time.Second):
+		t.Error("handler did not finish after context cancellation")
+	}
+
+	// Check that at least one ping event was sent
+	body := rr.BodyString()
+	if !strings.Contains(body, "event: ping") {
+		t.Errorf("expected at least one keepalive ping event in response, got:\n%s", body)
+	}
+
+	// Also verify the connected event was sent
+	if !strings.Contains(body, "event: connected") {
+		t.Error("expected 'connected' event in response")
+	}
+}
+
+// TestMCPHandler_HandleRequest_SSEResponse tests request handling with SSE Accept header
+func TestMCPHandler_HandleRequest_SSEResponse(t *testing.T) {
+	pm := newTestMockProcessManager()
+	defer pm.Close()
+
+	sm := NewSessionManager(config.SessionConfig{
+		Enabled:     true,
+		Timeout:     30 * time.Minute,
+		MaxSessions: 100,
+	})
+	logger := createTestLogger()
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
+
+	session, _ := sm.CreateSession()
+
+	// Simulate subprocess response in background
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		response := `{"jsonrpc":"2.0","result":{"sse":true},"id":"sse-test-1"}` + "\n"
+		pm.stdoutWriter.Write([]byte(response))
+	}()
+
+	body := bytes.NewBufferString(`{"jsonrpc":"2.0","method":"test/sse","id":"sse-test-1"}`)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", body)
+	req.Header.Set("Content-Type", ContentTypeJSON)
+	req.Header.Set("Accept", ContentTypeSSE)
+	req.Header.Set(MCPSessionIDHeader, session.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rr := newMockFlusherRecorder()
+	handler.HandlePost(rr, req)
+
+	// Should return SSE content type
+	contentType := rr.Header().Get("Content-Type")
+	if contentType != ContentTypeSSE {
+		t.Errorf("expected Content-Type %s, got %s", ContentTypeSSE, contentType)
+	}
+
+	// Body should contain SSE-formatted data
+	responseBody := rr.Body.String()
+	if !strings.Contains(responseBody, "data:") {
+		t.Errorf("expected SSE data: prefix in response, got: %s", responseBody)
+	}
+
+	// Session ID should be returned
+	if rr.Header().Get(MCPSessionIDHeader) != session.ID {
+		t.Errorf("expected session ID %s in response", session.ID)
+	}
+}
+
+// TestMCPHandler_HandleRequest_InitializeStoresCapabilities tests that initialize response stores capabilities
+func TestMCPHandler_HandleRequest_InitializeStoresCapabilities(t *testing.T) {
+	pm := newTestMockProcessManager()
+	defer pm.Close()
+
+	sm := NewSessionManager(config.SessionConfig{
+		Enabled:     true,
+		Timeout:     30 * time.Minute,
+		MaxSessions: 100,
+	})
+	logger := createTestLogger()
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
+
+	// Simulate subprocess response with capabilities
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		response := `{"jsonrpc":"2.0","result":{"protocolVersion":"1.0","capabilities":{"tools":true,"prompts":true}},"id":"init-cap"}` + "\n"
+		pm.stdoutWriter.Write([]byte(response))
+	}()
+
+	body := bytes.NewBufferString(`{"jsonrpc":"2.0","method":"initialize","id":"init-cap","params":{"protocolVersion":"1.0"}}`)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", body)
+	req.Header.Set("Content-Type", ContentTypeJSON)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler.HandlePost(rr, req)
+
+	// Get the created session
+	sessionID := rr.Header().Get(MCPSessionIDHeader)
+	if sessionID == "" {
+		t.Fatal("expected session ID header")
+	}
+
+	session := sm.GetSession(sessionID)
+	if session == nil {
+		t.Fatal("expected session to exist")
+	}
+
+	// Session should be marked as initialized
+	if !session.Initialized {
+		t.Error("expected session to be initialized")
+	}
+
+	// Capabilities should be stored
+	caps := session.GetCapabilities()
+	if caps == nil {
+		t.Error("expected capabilities to be stored")
+	}
+}
+
+// TestMCPHandler_HandleRequest_WriteError tests error when writing request to stdin fails
+func TestMCPHandler_HandleRequest_StdinWriteError(t *testing.T) {
+	pm := newTestMockProcessManager()
+	defer pm.Close()
+
+	sm := NewSessionManager(config.SessionConfig{
+		Enabled:     true,
+		Timeout:     30 * time.Minute,
+		MaxSessions: 100,
+	})
+	logger := createTestLogger()
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
+
+	session, _ := sm.CreateSession()
+
+	// Make stdin return error
+	pm.stdinWriter.SetError(errors.New("broken pipe"))
+
+	body := bytes.NewBufferString(`{"jsonrpc":"2.0","method":"test/method","id":"write-err-1"}`)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", body)
+	req.Header.Set("Content-Type", ContentTypeJSON)
+	req.Header.Set(MCPSessionIDHeader, session.ID)
+
+	rr := httptest.NewRecorder()
+	handler.HandlePost(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	}
+}
+
+// TestMCPHandler_HandleRequest_ContextCancellation tests that request handles context cancellation
+func TestMCPHandler_HandleRequest_ContextCancellation(t *testing.T) {
+	pm := newTestMockProcessManager()
+	defer pm.Close()
+
+	sm := NewSessionManager(config.SessionConfig{
+		Enabled:     true,
+		Timeout:     30 * time.Minute,
+		MaxSessions: 100,
+	})
+	logger := createTestLogger()
+	handler := NewMCPHandler(pm, sm, logger, 5*time.Second, 0)
+
+	session, _ := sm.CreateSession()
+
+	// Create a context that will be cancelled immediately
+	ctx, cancel := context.WithCancel(context.Background())
+
+	body := bytes.NewBufferString(`{"jsonrpc":"2.0","method":"test/cancel","id":"cancel-test-1"}`)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", body)
+	req.Header.Set("Content-Type", ContentTypeJSON)
+	req.Header.Set(MCPSessionIDHeader, session.ID)
+	req = req.WithContext(ctx)
+
+	// Cancel the context before the subprocess can respond
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	rr := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		handler.HandlePost(rr, req)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Handler completed - context cancellation worked
+	case <-time.After(3 * time.Second):
+		t.Error("handler did not complete after context cancellation")
+	}
+}
+
+// TestMCPHandler_HandleSessionClose_WithSSEClient tests session close with active SSE
+func TestMCPHandler_HandleSessionClose_WithSSEClient(t *testing.T) {
+	pm := newTestMockProcessManager()
+	defer pm.Close()
+
+	sm := NewSessionManager(config.SessionConfig{
+		Enabled:     true,
+		Timeout:     30 * time.Minute,
+		MaxSessions: 100,
+	})
+	logger := createTestLogger()
+	handler := NewMCPHandler(pm, sm, logger, 0, 0)
+
+	session, _ := sm.CreateSession()
+
+	// Register an SSE client
+	rr := newSyncMockFlusherRecorder()
+	sse := NewSSEWriter(rr, rr)
+	handler.sseClientsMu.Lock()
+	handler.sseClients[session.ID] = sse
+	handler.sseClientsMu.Unlock()
+
+	// Close session via DELETE
+	req := httptest.NewRequest(http.MethodDelete, "/mcp", nil)
+	req.Header.Set(MCPSessionIDHeader, session.ID)
+
+	deleteRR := httptest.NewRecorder()
+	handler.HandleSessionClose(deleteRR, req)
+
+	if deleteRR.Code != http.StatusNoContent {
+		t.Errorf("expected status %d, got %d", http.StatusNoContent, deleteRR.Code)
+	}
+
+	// SSE client should be removed
+	handler.sseClientsMu.RLock()
+	_, exists := handler.sseClients[session.ID]
+	handler.sseClientsMu.RUnlock()
+	if exists {
+		t.Error("SSE client should have been removed after session close")
+	}
+
+	// Check that close event was sent
+	body := rr.BodyString()
+	if !strings.Contains(body, "session_closed") {
+		t.Errorf("expected close event with session_closed, got: %s", body)
+	}
+}

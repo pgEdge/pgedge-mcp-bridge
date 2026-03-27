@@ -1281,3 +1281,151 @@ func TestServer_HTTPEndpointsIntegration(t *testing.T) {
 	// Clean up
 	server.Stop(context.Background())
 }
+func TestServer_StopWithNilContextCreatesOwnTimeout(t *testing.T) {
+	cfg := newTestServerConfig()
+	cfg.Listen = "127.0.0.1:0"
+	logger := newTestLogger(t)
+
+	server, err := NewServer(cfg, logger)
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+
+	// Replace process manager with mock
+	mockPM := newMockProcessManager()
+	server.processManager = mockPM
+	server.mcpHandler = NewMCPHandler(mockPM, server.sessionManager, logger, 0, 0)
+
+	ctx := context.Background()
+
+	// Start server
+	go func() {
+		server.Start(ctx)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop with nil context - should not panic and should create its own timeout
+	err = server.Stop(nil)
+	if err != nil {
+		t.Errorf("Stop(nil) error = %v", err)
+	}
+
+	// Verify done channel is closed
+	select {
+	case <-server.Done():
+		// Good
+	case <-time.After(5 * time.Second):
+		t.Error("Done channel should be closed after Stop(nil)")
+	}
+}
+
+// TestServer_HandleReady_ProcessNotRunningReturns503 tests handleReady when process is not running
+func TestServer_HandleReady_ProcessNotRunningReturns503(t *testing.T) {
+	cfg := newTestServerConfig()
+	logger := newTestLogger(t)
+
+	server, err := NewServer(cfg, logger)
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+
+	// Mock process manager is not running
+	mockPM := newMockProcessManager()
+	mockPM.SetRunning(false)
+	server.processManager = mockPM
+	// Server itself is marked as running
+	server.running.Store(true)
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rr := httptest.NewRecorder()
+
+	server.handleReady(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, rr.Code)
+	}
+
+	var response map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse response body: %v", err)
+	}
+
+	if response["status"] != "not_ready" {
+		t.Errorf("unexpected status: got %v want not_ready", response["status"])
+	}
+	if response["reason"] != "mcp_subprocess_not_running" {
+		t.Errorf("unexpected reason: got %v want mcp_subprocess_not_running", response["reason"])
+	}
+}
+
+// TestServer_BuildRouter_RegistersOAuthRoutes tests that buildRouter registers OAuth routes
+// when OAuthServer is configured via NewServer with a full OAuthServerConfig.
+func TestServer_BuildRouter_RegistersOAuthRoutes(t *testing.T) {
+	cfg := newTestServerConfig()
+	cfg.OAuthServer = &config.OAuthServerConfig{
+		Enabled: true,
+		Issuer:  "http://localhost:8080",
+		Mode:    "builtin",
+		Signing: &config.SigningConfig{
+			GenerateKey: true,
+			Algorithm:   "RS256",
+		},
+		TokenLifetime:        time.Hour,
+		RefreshTokenLifetime: 24 * time.Hour,
+		AuthCodeLifetime:     10 * time.Minute,
+		BuiltIn: &config.BuiltInAuthConfig{
+			Users: []config.UserConfig{
+				{
+					Username:     "testuser",
+					PasswordHash: "$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012", // dummy bcrypt
+				},
+			},
+		},
+	}
+	// Also add auth config so skip paths include OAuth routes
+	cfg.Auth = &config.AuthConfig{
+		Type: "bearer",
+		Bearer: &config.BearerAuthConfig{
+			ValidTokens: []string{"test-token"},
+		},
+	}
+	logger := newTestLogger(t)
+
+	server, err := NewServer(cfg, logger)
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+
+	if server.oauthServer == nil {
+		t.Fatal("oauthServer should be initialized")
+	}
+
+	// Build router and test OAuth endpoints are registered
+	router := server.buildRouter()
+	if router == nil {
+		t.Fatal("buildRouter() returned nil")
+	}
+
+	// Test that the OAuth metadata endpoint is registered
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	// Should return 200 with JSON metadata (not 404)
+	if rr.Code == http.StatusNotFound {
+		t.Error("OAuth metadata endpoint should be registered")
+	}
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200 for OAuth metadata, got %d", rr.Code)
+	}
+
+	// Test JWKS endpoint
+	req = httptest.NewRequest(http.MethodGet, "/oauth/jwks", nil)
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code == http.StatusNotFound {
+		t.Error("OAuth JWKS endpoint should be registered")
+	}
+}
