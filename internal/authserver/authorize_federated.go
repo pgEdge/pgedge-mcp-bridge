@@ -304,63 +304,12 @@ func (h *FederatedAuthorizeHandler) parseAndValidateRequest(r *http.Request) (*A
 
 // validateRequest validates an authorization request.
 func (h *FederatedAuthorizeHandler) validateRequest(req *AuthorizeRequest) *OAuthError {
-	// Validate response_type
-	if req.ResponseType != "code" {
-		return ErrUnsupportedResponseType("only 'code' response type is supported")
-	}
-
-	// Validate client_id
-	if req.ClientID == "" {
-		return ErrInvalidRequest("client_id is required")
-	}
-
-	// Validate redirect_uri
-	if req.RedirectURI == "" {
-		return ErrInvalidRequest("redirect_uri is required")
-	}
-	if !h.isAllowedRedirectURI(req.RedirectURI) {
-		return ErrInvalidRequest("redirect_uri is not allowed")
-	}
-
-	// Validate PKCE (required per MCP spec)
-	if req.CodeChallenge == "" {
-		return ErrInvalidRequest("code_challenge is required (PKCE)")
-	}
-	if req.CodeChallengeMethod == "" {
-		req.CodeChallengeMethod = "S256" // Default to S256
-	}
-	if !ValidateCodeChallengeMethod(req.CodeChallengeMethod) {
-		return ErrInvalidRequest("only S256 code_challenge_method is supported")
-	}
-	if !ValidateCodeChallenge(req.CodeChallenge) {
-		return ErrInvalidRequest("invalid code_challenge format")
-	}
-
-	return nil
+	return validateAuthorizeRequest(req, h.allowedRedirectURIs)
 }
 
 // isAllowedRedirectURI checks if the URI is in the allowed list.
-// For localhost redirect URIs, only the scheme and host are compared,
-// allowing any port. This supports development tools like Claude Desktop
-// that use dynamic ports on localhost.
 func (h *FederatedAuthorizeHandler) isAllowedRedirectURI(uri string) bool {
-	for _, allowed := range h.allowedRedirectURIs {
-		if allowed == uri {
-			return true
-		}
-		// Support localhost with any port for development, but require
-		// an exact path match to prevent open redirect attacks.
-		if isLocalhostURI(allowed) && isLocalhostURI(uri) {
-			allowedParsed, err1 := url.Parse(allowed)
-			uriParsed, err2 := url.Parse(uri)
-			if err1 == nil && err2 == nil &&
-				allowedParsed.Scheme == uriParsed.Scheme &&
-				allowedParsed.Path == uriParsed.Path {
-				return true
-			}
-		}
-	}
-	return false
+	return isAllowedRedirectURI(uri, h.allowedRedirectURIs)
 }
 
 // generateSecureToken generates a cryptographically secure random token.

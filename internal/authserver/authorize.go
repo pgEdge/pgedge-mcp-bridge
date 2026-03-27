@@ -278,6 +278,17 @@ func (h *AuthorizeHandler) parseAndValidateRequest(r *http.Request) (*AuthorizeR
 
 // validateRequest validates an authorization request.
 func (h *AuthorizeHandler) validateRequest(req *AuthorizeRequest) *OAuthError {
+	return validateAuthorizeRequest(req, h.allowedRedirectURIs)
+}
+
+// isAllowedRedirectURI checks if the URI is in the allowed list.
+func (h *AuthorizeHandler) isAllowedRedirectURI(uri string) bool {
+	return isAllowedRedirectURI(uri, h.allowedRedirectURIs)
+}
+
+// validateAuthorizeRequest validates an OAuth authorization request against
+// the allowed redirect URIs and PKCE requirements.
+func validateAuthorizeRequest(req *AuthorizeRequest, allowedRedirectURIs []string) *OAuthError {
 	// Validate response_type
 	if req.ResponseType != "code" {
 		return ErrUnsupportedResponseType("only 'code' response type is supported")
@@ -292,7 +303,7 @@ func (h *AuthorizeHandler) validateRequest(req *AuthorizeRequest) *OAuthError {
 	if req.RedirectURI == "" {
 		return ErrInvalidRequest("redirect_uri is required")
 	}
-	if !h.isAllowedRedirectURI(req.RedirectURI) {
+	if !isAllowedRedirectURI(req.RedirectURI, allowedRedirectURIs) {
 		return ErrInvalidRequest("redirect_uri is not allowed")
 	}
 
@@ -317,8 +328,8 @@ func (h *AuthorizeHandler) validateRequest(req *AuthorizeRequest) *OAuthError {
 // For localhost redirect URIs, only the scheme and host are compared,
 // allowing any port. This supports development tools like Claude Desktop
 // that use dynamic ports on localhost.
-func (h *AuthorizeHandler) isAllowedRedirectURI(uri string) bool {
-	for _, allowed := range h.allowedRedirectURIs {
+func isAllowedRedirectURI(uri string, allowedRedirectURIs []string) bool {
+	for _, allowed := range allowedRedirectURIs {
 		if allowed == uri {
 			return true
 		}

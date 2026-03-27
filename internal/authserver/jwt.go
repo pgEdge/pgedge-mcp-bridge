@@ -17,6 +17,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -262,26 +263,7 @@ func generateJTI() string {
 }
 
 func encodeBase64URL(data []byte) string {
-	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-	result := make([]byte, (len(data)*8+5)/6)
-
-	for i, b := 0, uint(0); i < len(result); i++ {
-		if i%4 == 0 && i > 0 {
-			b >>= 2
-		}
-		byteIndex := (i * 6) / 8
-		bitOffset := (i * 6) % 8
-
-		if byteIndex < len(data) {
-			b = uint(data[byteIndex])
-			if bitOffset > 2 && byteIndex+1 < len(data) {
-				b |= uint(data[byteIndex+1]) << 8
-			}
-			result[i] = alphabet[(b>>bitOffset)&0x3F]
-		}
-	}
-
-	return string(result)
+	return base64.RawURLEncoding.EncodeToString(data)
 }
 
 // GenerateClientID generates a new random client ID.

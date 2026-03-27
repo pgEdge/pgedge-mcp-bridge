@@ -139,13 +139,18 @@ func (c *OIDCClient) GetJWKS(ctx context.Context) (*JWKS, error) {
 		return c.jwks, nil
 	}
 
-	// Need discovery first
+	// Need discovery first - release lock to avoid deadlock since
+	// Discover() also acquires the lock.
 	if c.discovery == nil {
 		c.mu.Unlock()
 		disc, err := c.Discover(ctx)
-		c.mu.Lock()
 		if err != nil {
 			return nil, err
+		}
+		c.mu.Lock()
+		// Re-check cache after reacquiring lock
+		if c.jwks != nil && time.Since(c.jwksTime) < time.Hour {
+			return c.jwks, nil
 		}
 		c.discovery = disc
 	}
