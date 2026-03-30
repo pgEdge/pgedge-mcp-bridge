@@ -13,10 +13,10 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Set up Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@v6
               with:
                   go-version: "1.24"
                   cache: true
@@ -76,7 +76,7 @@ jobs:
                   fi
 
             - name: Upload coverage artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-report
                   path: |
@@ -85,7 +85,7 @@ jobs:
                   retention-days: 7
 
             - name: Upload build artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: mcp-bridge-linux-amd64
                   path: bin/mcp-bridge
