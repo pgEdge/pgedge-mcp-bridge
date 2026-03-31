@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-alpha6] - 2026-03-31
+
 ### Added
 
+- **Customisable OAuth login page**: Support for custom login page templates with configurable title, CSS stylesheet URL, and logo, or a fully custom HTML login page served from a user-specified path
 - **MCP Streamable HTTP transport**: Support for the Streamable HTTP transport protocol, where POST requests with `Accept: text/event-stream` receive SSE-wrapped responses
 - **Configurable timeouts**: New timeout settings for SSE keepalive (`server.sse_keepalive_interval`), MCP subprocess reads (`server.mcp_server.read_timeout`), OAuth HTTP requests (`auth.oauth.http_timeout`), and federated OAuth HTTP requests (`oauth_server.federated.http_timeout`), all defaulting to 30s
 
@@ -16,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Code quality**: Cleanup and refactoring across the codebase
 - **Test coverage**: Improved test coverage
+- **Documentation**: Expanded README and fixed documentation examples
 
 ### Fixed
 
@@ -28,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Reliability**: Authorization code and refresh token deletion errors are now logged instead of silently discarded
 - **Reliability**: Federated authorization handler cleanup goroutine now properly shuts down on Close()
 - **TLS**: A warning is now logged when `insecure_skip_verify` is enabled
+
+[1.0.0-alpha6]: https://github.com/pgEdge/pgedge-mcp-bridge/releases/tag/v1.0.0-alpha6
 
 ## [1.0.0-alpha4] - 2026-03-03
 
