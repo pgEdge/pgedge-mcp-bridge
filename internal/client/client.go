@@ -178,16 +178,17 @@ func (c *Client) Run(ctx context.Context) error {
 //
 // Per the spec, the distinction between a notification and a request is the
 // *absence* of the "id" key, not "id: null" (which is a valid, though
-// discouraged, request id). Unmarshalling into protocol.Message preserves
-// this via the pointer field ID *RequestID — nil iff the key was absent.
+// discouraged, request id). Check raw key presence explicitly so missing "id"
+// and `"id": null` are handled distinctly.
 func isNotification(raw []byte) bool {
-	var m protocol.Message
+	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
 		// Not parseable JSON-RPC; let upstream handle it. Treating malformed
 		// messages as non-notifications preserves prior behavior.
 		return false
 	}
-	return m.Type() == protocol.MessageTypeNotification
+	_, hasID := m["id"]
+	return !hasID
 }
 
 // handleMessage processes a single message from stdin, sends it to the server,
