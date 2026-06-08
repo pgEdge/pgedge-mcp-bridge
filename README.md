@@ -1,3 +1,10 @@
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/pgedge-labs-dark.svg">
+    <img alt="pgEdge Labs" src="docs/img/pgedge-labs-light.svg" width="320">
+  </picture>
+</div>
+
 # pgEdge MCP Bridge
 
 [![CI](https://github.com/pgEdge/pgedge-mcp-bridge/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-mcp-bridge/actions/workflows/ci.yml?query=branch%3Amain)

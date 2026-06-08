@@ -1,3 +1,8 @@
+<div class="banner" markdown>
+![pgEdge Labs](img/pgedge-labs-light.svg#only-light){ width="320" }
+![pgEdge Labs](img/pgedge-labs-dark.svg#only-dark){ width="320" }
+</div>
+
 # pgEdge MCP Bridge
 
 The pgEdge MCP Bridge is a bidirectional transport proxy for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). It bridges between HTTP/SSE and stdio transports, enabling MCP clients and servers to communicate regardless of which transport they support.
