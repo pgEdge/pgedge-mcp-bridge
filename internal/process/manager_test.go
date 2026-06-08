@@ -11,6 +11,7 @@
 package process
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"io"
@@ -993,11 +994,15 @@ func TestWorkingDirectory(t *testing.T) {
 		expectedDir = "/tmp"
 	}
 
-	// Use sh -c to ensure we capture output before pipe closes.
-	// The shell wrapper provides enough delay for the reader to start.
+	// Print the working directory, then block on stdin (via cat) so the
+	// process — and therefore its stdout pipe — stays alive until we have
+	// read the output. cmd.StdoutPipe documents that Wait closes the pipe as
+	// soon as the process exits, and monitor() calls Wait immediately after
+	// Start; for an instant-exit command that races the reader and truncates
+	// the output. Keeping the process alive removes the race entirely.
 	m := NewManager(ManagerConfig{
 		Command: "sh",
-		Args:    []string{"-c", "pwd"},
+		Args:    []string{"-c", "pwd; cat"},
 		Dir:     "/tmp",
 	})
 	defer m.Close()
@@ -1009,19 +1014,19 @@ func TestWorkingDirectory(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	// Read stdout - get it immediately after Start
 	stdout := m.Stdout()
 	if stdout == nil {
 		t.Fatal("Stdout() is nil")
 	}
 
-	// Read all output using io.ReadAll which handles pipe closure gracefully
-	data, err := io.ReadAll(stdout)
+	// Read exactly the pwd line; the process stays alive afterwards so the
+	// read cannot race the pipe being closed.
+	line, err := bufio.NewReader(stdout).ReadString('\n')
 	if err != nil {
 		t.Fatalf("Error reading stdout: %v", err)
 	}
 
-	output := strings.TrimSpace(string(data))
+	output := strings.TrimSpace(line)
 	if output != expectedDir {
 		t.Errorf("Working directory = %q, want %q", output, expectedDir)
 	}
@@ -1031,9 +1036,12 @@ func TestWorkingDirectory(t *testing.T) {
 func TestEnvironmentVariables(t *testing.T) {
 	t.Parallel()
 
+	// Echo the variable, then block on stdin (via cat) so the stdout pipe
+	// stays open until we have read the value — see TestWorkingDirectory for
+	// the race this avoids.
 	m := NewManager(ManagerConfig{
 		Command: "sh",
-		Args:    []string{"-c", "echo $MY_TEST_VAR"},
+		Args:    []string{"-c", "echo $MY_TEST_VAR; cat"},
 		Env:     map[string]string{"MY_TEST_VAR": "test_value_123"},
 	})
 	defer m.Close()
@@ -1050,22 +1058,13 @@ func TestEnvironmentVariables(t *testing.T) {
 		t.Fatal("Stdout() is nil")
 	}
 
-	buf := make([]byte, 256)
-	done := make(chan int, 1)
+	line, err := bufio.NewReader(stdout).ReadString('\n')
+	if err != nil {
+		t.Fatalf("Error reading stdout: %v", err)
+	}
 
-	go func() {
-		n, _ := stdout.Read(buf)
-		done <- n
-	}()
-
-	select {
-	case n := <-done:
-		output := strings.TrimSpace(string(buf[:n]))
-		if output != "test_value_123" {
-			t.Errorf("Environment variable = %q, want test_value_123", output)
-		}
-	case <-time.After(2 * time.Second):
-		t.Error("Timeout waiting for stdout")
+	if output := strings.TrimSpace(line); output != "test_value_123" {
+		t.Errorf("Environment variable = %q, want test_value_123", output)
 	}
 }
 
