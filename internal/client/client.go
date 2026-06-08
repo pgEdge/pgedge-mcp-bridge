@@ -15,6 +15,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -170,10 +171,33 @@ func (c *Client) Run(ctx context.Context) error {
 	}
 }
 
+// isNotification reports whether a raw JSON-RPC message is a notification
+// (a request with no "id" member, per JSON-RPC 2.0 §4.1). Notifications must
+// not receive a response, even if the upstream server emits one in error.
+//
+// Per the spec, the distinction between a notification and a request is the
+// *absence* of the "id" key, not "id: null" (which is a valid, though
+// discouraged, request id). Check raw key presence explicitly so missing "id"
+// and `"id": null` are handled distinctly.
+func isNotification(raw []byte) bool {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		// Not parseable JSON-RPC; let upstream handle it. Treating malformed
+		// messages as non-notifications preserves prior behavior.
+		return false
+	}
+	_, hasID := m["id"]
+	return !hasID
+}
+
 // handleMessage processes a single message from stdin, sends it to the server,
-// and writes the response to stdout.
+// and writes the response to stdout. Per JSON-RPC 2.0 §4.1, notifications
+// (requests without an "id") MUST NOT receive a response, so any reply from
+// the upstream server is dropped silently for notification inputs.
 func (c *Client) handleMessage(ctx context.Context, msg []byte) error {
 	c.logger.Debug("received message from stdin", "size", len(msg))
+
+	isNotif := isNotification(msg)
 
 	// Get current session ID
 	c.sessionMu.RLock()
@@ -183,6 +207,13 @@ func (c *Client) handleMessage(ctx context.Context, msg []byte) error {
 	// Send message to server
 	response, newSessionID, err := c.transport.Send(ctx, msg, sessionID)
 	if err != nil {
+		if isNotif {
+			// Notifications expect no response, but we still route through the
+			// normal error path so session-expiry resets and retry/backoff are
+			// preserved. retryMessage suppresses the stdout write for
+			// notifications, so spec-compliance is maintained either way.
+			c.logger.Warn("error forwarding notification upstream", "error", err)
+		}
 		return c.handleSendError(ctx, msg, err)
 	}
 
@@ -194,7 +225,19 @@ func (c *Client) handleMessage(ctx context.Context, msg []byte) error {
 		c.logger.Debug("updated session ID", "session_id", newSessionID)
 	}
 
-	// Write response to stdout
+	// Write response to stdout — UNLESS the inbound message was a notification.
+	// Some upstream servers emit a response body for notifications (e.g. an
+	// empty result object); forwarding it violates the JSON-RPC spec and
+	// trips strict client-side validators (notably Claude Desktop's Zod-based
+	// MCP SDK reader).
+	if isNotif {
+		if len(response) > 0 {
+			c.logger.Debug("dropping upstream response to notification",
+				"size", len(response))
+		}
+		return nil
+	}
+
 	if len(response) > 0 {
 		if err := c.stdio.WriteMessage(response); err != nil {
 			return fmt.Errorf("writing response to stdout: %w", err)
@@ -237,6 +280,8 @@ func (c *Client) retryMessage(ctx context.Context, msg []byte, sessionID string)
 		return fmt.Errorf("retries not enabled")
 	}
 
+	isNotif := isNotification(msg)
+
 	delay := c.config.Retry.InitialDelay
 	maxRetries := c.config.Retry.MaxRetries
 
@@ -257,6 +302,15 @@ func (c *Client) retryMessage(ctx context.Context, msg []byte, sessionID string)
 				c.sessionMu.Lock()
 				c.sessionID = newSessionID
 				c.sessionMu.Unlock()
+			}
+
+			// Suppress responses to notifications (see handleMessage).
+			if isNotif {
+				if len(response) > 0 {
+					c.logger.Debug("dropping upstream response to notification",
+						"size", len(response))
+				}
+				return nil
 			}
 
 			if len(response) > 0 {
@@ -324,8 +378,13 @@ func (c *Client) RunWithSSE(ctx context.Context) error {
 }
 
 // handleMessageWithSSE processes a message and handles streaming SSE responses.
+// As with handleMessage, notifications (requests without an "id") MUST NOT
+// receive a response per JSON-RPC 2.0 §4.1, so any SSE events received in
+// reply to a notification are dropped.
 func (c *Client) handleMessageWithSSE(ctx context.Context, msg []byte) error {
 	c.logger.Debug("received message from stdin (SSE mode)", "size", len(msg))
+
+	isNotif := isNotification(msg)
 
 	// Get current session ID
 	c.sessionMu.RLock()
@@ -348,12 +407,18 @@ func (c *Client) handleMessageWithSSE(ctx context.Context, msg []byte) error {
 
 	// Process SSE events
 	for event := range events {
-		if len(event) > 0 {
-			if err := c.stdio.WriteMessage(event); err != nil {
-				return fmt.Errorf("writing SSE event to stdout: %w", err)
-			}
-			c.logger.Debug("wrote SSE event to stdout", "size", len(event))
+		if len(event) == 0 {
+			continue
 		}
+		if isNotif {
+			c.logger.Debug("dropping upstream SSE event for notification",
+				"size", len(event))
+			continue
+		}
+		if err := c.stdio.WriteMessage(event); err != nil {
+			return fmt.Errorf("writing SSE event to stdout: %w", err)
+		}
+		c.logger.Debug("wrote SSE event to stdout", "size", len(event))
 	}
 
 	return nil

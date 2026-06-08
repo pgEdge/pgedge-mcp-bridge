@@ -597,6 +597,114 @@ func TestClient_HandleMessage_SessionExpired(t *testing.T) {
 	}
 }
 
+// TestClient_HandleMessage_NotificationSuppressesResponse verifies that when
+// the inbound stdin message is a JSON-RPC notification (no "id"), any response
+// body emitted by the upstream server is dropped rather than written to stdout,
+// per JSON-RPC 2.0 §4.1. The notification must still reach the upstream server.
+func TestClient_HandleMessage_NotificationSuppressesResponse(t *testing.T) {
+	requestReceived := make(chan []byte, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		requestReceived <- body
+		w.Header().Set("Content-Type", "application/json")
+		// Some upstream servers emit a body for notifications even though
+		// they shouldn't (e.g. pgedge-postgres-mcp returns an empty result).
+		w.Write([]byte(`{"jsonrpc":"2.0","result":{}}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(&config.ClientConfig{URL: server.URL}, createTestLogger())
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+	defer client.Close()
+
+	mockOut := newMockWriter()
+	client.stdio = NewStdioHandler(newMockReader(""), mockOut, createTestLogger())
+
+	// A notification: a request with no "id".
+	msg := []byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	if err := client.handleMessage(context.Background(), msg); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	// The notification must have been forwarded upstream.
+	select {
+	case received := <-requestReceived:
+		if string(received) != string(msg) {
+			t.Errorf("Expected upstream to receive %s, got %s", string(msg), string(received))
+		}
+	case <-time.After(time.Second):
+		t.Error("Timeout waiting for upstream request")
+	}
+
+	// Nothing must have been written to stdout.
+	time.Sleep(50 * time.Millisecond)
+	if output := mockOut.String(); output != "" {
+		t.Errorf("Expected no stdout output for notification, got: %q", output)
+	}
+}
+
+// TestClient_HandleMessage_RequestStillWritesResponse is a guard ensuring the
+// notification suppression does not affect ordinary requests (those with an
+// "id"): their responses must still be written to stdout.
+func TestClient_HandleMessage_RequestStillWritesResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"jsonrpc":"2.0","result":"ok","id":1}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(&config.ClientConfig{URL: server.URL}, createTestLogger())
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+	defer client.Close()
+
+	mockOut := newMockWriter()
+	client.stdio = NewStdioHandler(newMockReader(""), mockOut, createTestLogger())
+
+	msg := []byte(`{"jsonrpc":"2.0","method":"tools/list","id":1}`)
+	if err := client.handleMessage(context.Background(), msg); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	if output := mockOut.String(); !strings.Contains(output, "result") {
+		t.Errorf("Expected response in stdout for request, got: %q", output)
+	}
+}
+
+// TestClient_isNotification covers the helper's classification of notifications
+// (no "id"), requests (including the discouraged "id": null), responses, and
+// malformed input.
+func TestClient_isNotification(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{"notification", `{"jsonrpc":"2.0","method":"notifications/initialized"}`, true},
+		{"notification with params", `{"jsonrpc":"2.0","method":"foo","params":{"a":1}}`, true},
+		{"request", `{"jsonrpc":"2.0","method":"tools/list","id":1}`, false},
+		{"request with string id", `{"jsonrpc":"2.0","method":"foo","id":"abc"}`, false},
+		{"request with null id", `{"jsonrpc":"2.0","method":"foo","id":null}`, false},
+		{"response", `{"jsonrpc":"2.0","result":{},"id":1}`, false},
+		{"error response", `{"jsonrpc":"2.0","error":{"code":-32600,"message":"x"},"id":1}`, false},
+		{"malformed json", `{not json`, false},
+		{"empty", ``, false},
+		{"json array", `[{"jsonrpc":"2.0","method":"foo"}]`, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isNotification([]byte(tt.raw)); got != tt.want {
+				t.Errorf("isNotification(%q) = %v, want %v", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHTTPError_Error(t *testing.T) {
 	tests := []struct {
 		name     string
