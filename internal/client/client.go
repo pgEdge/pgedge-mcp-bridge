@@ -26,7 +26,6 @@ import (
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/auth"
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/config"
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/logging"
-	"github.com/pgEdge/pgedge-mcp-bridge/internal/protocol"
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/tls"
 )
 
@@ -209,10 +208,11 @@ func (c *Client) handleMessage(ctx context.Context, msg []byte) error {
 	response, newSessionID, err := c.transport.Send(ctx, msg, sessionID)
 	if err != nil {
 		if isNotif {
-			// Notifications expect no response. Surface the error in the log
-			// but don't synthesize a stdout response.
+			// Notifications expect no response, but we still route through the
+			// normal error path so session-expiry resets and retry/backoff are
+			// preserved. retryMessage suppresses the stdout write for
+			// notifications, so spec-compliance is maintained either way.
 			c.logger.Warn("error forwarding notification upstream", "error", err)
-			return nil
 		}
 		return c.handleSendError(ctx, msg, err)
 	}

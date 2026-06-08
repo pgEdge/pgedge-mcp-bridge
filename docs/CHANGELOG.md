@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Client mode**: JSON-RPC notifications (requests without an `id`) no longer produce stdout output, even when the upstream server emits a response body for them. Per JSON-RPC 2.0 §4.1 notifications must not receive a response; forwarding one tripped strict client-side validators such as Claude Desktop's MCP SDK
+
 ## [1.0.0-alpha6] - 2026-03-31
 
 ### Added
