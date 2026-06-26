@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta1] - 2026-06-26
+
+### Added
+
+- **Session pool observability**: The `/health` endpoint now reports `active_sessions` and `max_sessions` so the session pool can be monitored without restarting the process, and every session eviction is logged at INFO level with the session ID and a reason (`idle-timeout` or `explicit-delete`)
+
+### Changed
+
+- **Dependencies**: Updated `go-jose` and the documentation toolchain (`urllib3`, `requests`, `idna`, `Pygments`, `pymdown-extensions`) to their latest patched releases, clearing all outstanding security advisories
+
 ### Fixed
 
+- **Session management**: Idle MCP sessions are now evicted once they have been inactive for longer than `session.timeout`, freeing their slot against `session.max_sessions`. Previously the idle reaper only started when `session.enabled` was explicitly set to `true`, so a configuration that omitted that flag would let the session pool fill to `max_sessions` and stay full until the process was restarted, rejecting every new client with `maximum sessions reached`
 - **Client mode**: JSON-RPC notifications (requests without an `id`) no longer produce stdout output, even when the upstream server emits a response body for them. Per JSON-RPC 2.0 §4.1 notifications must not receive a response; forwarding one tripped strict client-side validators such as Claude Desktop's MCP SDK
+
+[1.0.0-beta1]: https://github.com/pgEdge/pgedge-mcp-bridge/releases/tag/v1.0.0-beta1
 
 ## [1.0.0-alpha6] - 2026-03-31
 
