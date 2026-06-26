@@ -16,6 +16,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -104,6 +105,7 @@ func NewServer(cfg *config.ServerConfig, logger *logging.Logger) (*Server, error
 
 	// Initialize session manager
 	s.sessionManager = NewSessionManager(cfg.Session)
+	s.sessionManager.SetLogger(logger)
 
 	// Initialize process manager for the MCP subprocess
 	pmConfig := process.ManagerConfig{
@@ -453,7 +455,17 @@ func (s *Server) monitorProcessEvents(ctx context.Context) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"healthy"}`))
+
+	// Report the current session pool occupancy so the pool can be monitored
+	// without restarting or attaching to the process.
+	payload := map[string]interface{}{
+		"status":          "healthy",
+		"active_sessions": s.sessionManager.SessionCount(),
+		"max_sessions":    s.sessionManager.MaxSessions(),
+	}
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		s.logger.Error("failed to encode health response", "error", err)
+	}
 }
 
 // handleReady handles the /ready endpoint.

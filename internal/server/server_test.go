@@ -376,13 +376,22 @@ func TestServer_HandleHealth(t *testing.T) {
 		t.Errorf("handler returned wrong content type: got %v want %v", contentType, "application/json")
 	}
 
-	var response map[string]string
+	var response map[string]interface{}
 	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to parse response body: %v", err)
 	}
 
 	if response["status"] != "healthy" {
 		t.Errorf("unexpected status: got %v want healthy", response["status"])
+	}
+
+	// The health payload must expose the session pool occupancy so the pool can
+	// be monitored. JSON numbers decode as float64.
+	if _, ok := response["active_sessions"].(float64); !ok {
+		t.Errorf("health response missing active_sessions: %v", response["active_sessions"])
+	}
+	if maxSessions, ok := response["max_sessions"].(float64); !ok || maxSessions <= 0 {
+		t.Errorf("health response missing or invalid max_sessions: %v", response["max_sessions"])
 	}
 }
 

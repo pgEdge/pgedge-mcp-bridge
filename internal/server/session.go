@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/pgEdge/pgedge-mcp-bridge/internal/config"
+	"github.com/pgEdge/pgedge-mcp-bridge/internal/logging"
 )
 
 const (
@@ -204,7 +205,10 @@ type SessionManager struct {
 	// cleanupInterval is how often to run the cleanup routine.
 	cleanupInterval time.Duration
 
-	// enabled indicates whether session management is enabled.
+	// enabled indicates whether stateful session support is advertised to
+	// clients. Note: it does NOT gate idle-session eviction; the reaper always
+	// runs whenever sessions are being tracked, because max_sessions is always
+	// enforced and a hard cap without a reaper is guaranteed to leak.
 	enabled bool
 
 	// cleanupCancel cancels the cleanup goroutine.
@@ -212,6 +216,16 @@ type SessionManager struct {
 
 	// cleanupDone signals when cleanup has stopped.
 	cleanupDone chan struct{}
+
+	// logger records session lifecycle events such as evictions. It may be nil,
+	// in which case logging is a no-op.
+	logger *logging.Logger
+}
+
+// SetLogger attaches a logger used to record session lifecycle events. Passing
+// nil disables logging.
+func (sm *SessionManager) SetLogger(logger *logging.Logger) {
+	sm.logger = logger
 }
 
 // NewSessionManager creates a new session manager with the given configuration.
@@ -330,6 +344,11 @@ func (sm *SessionManager) SessionCount() int {
 	return len(sm.sessions)
 }
 
+// MaxSessions returns the configured maximum number of concurrent sessions.
+func (sm *SessionManager) MaxSessions() int {
+	return sm.maxSessions
+}
+
 // BroadcastNotification sends a notification to all sessions.
 func (sm *SessionManager) BroadcastNotification(data []byte) {
 	sm.mu.RLock()
@@ -340,12 +359,11 @@ func (sm *SessionManager) BroadcastNotification(data []byte) {
 	}
 }
 
-// StartCleanup starts the background cleanup goroutine.
+// StartCleanup starts the background cleanup goroutine that evicts idle
+// sessions once their last activity exceeds the configured timeout. The reaper
+// runs regardless of the enabled flag: sessions are always tracked and counted
+// against max_sessions, so eviction must always run to avoid leaking slots.
 func (sm *SessionManager) StartCleanup(ctx context.Context) {
-	if !sm.enabled {
-		return
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	sm.cleanupCancel = cancel
 
@@ -394,6 +412,10 @@ func (sm *SessionManager) cleanupExpiredSessions() {
 		if session, exists := sm.sessions[id]; exists {
 			session.Close()
 			delete(sm.sessions, id)
+			sm.logger.Info("session evicted",
+				"session_id", id,
+				"reason", "idle-timeout",
+			)
 		}
 	}
 }

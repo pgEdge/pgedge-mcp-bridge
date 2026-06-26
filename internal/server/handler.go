@@ -445,7 +445,10 @@ func (h *MCPHandler) HandleSessionClose(w http.ResponseWriter, r *http.Request) 
 	}
 	h.sseClientsMu.Unlock()
 
-	h.logger.Info("session closed", "session_id", sessionID)
+	h.logger.Info("session evicted",
+		"session_id", sessionID,
+		"reason", "explicit-delete",
+	)
 
 	w.WriteHeader(http.StatusNoContent)
 }

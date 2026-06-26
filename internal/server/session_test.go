@@ -433,28 +433,36 @@ func TestSessionManager_StartStopCleanup(t *testing.T) {
 	sm.StopCleanup()
 }
 
-func TestSessionManager_CleanupDisabled(t *testing.T) {
+// TestSessionManager_CleanupRunsWhenNotEnabled is a regression guard for the
+// session-leak bug: the reaper must evict idle sessions even when the enabled
+// flag is false, because max_sessions is enforced regardless of that flag and a
+// hard cap without eviction leaks the pool until restart.
+func TestSessionManager_CleanupRunsWhenNotEnabled(t *testing.T) {
 	sm := NewSessionManager(config.SessionConfig{
 		Enabled:         false,
-		CleanupInterval: 50 * time.Millisecond,
+		CleanupInterval: 20 * time.Millisecond,
+		Timeout:         20 * time.Millisecond,
 	})
 
 	ctx := context.Background()
-	sm.StartCleanup(ctx) // Should not start anything
+	sm.StartCleanup(ctx)
+	defer sm.StopCleanup()
 
 	// Create a session
 	session, _ := sm.CreateSession()
 
-	// Wait
-	time.Sleep(100 * time.Millisecond)
-
-	// Session should still exist (cleanup not running)
-	if sm.GetSession(session.ID) == nil {
-		t.Error("session should still exist when cleanup is disabled")
+	// Wait for the session to expire and the reaper to run.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if sm.GetSession(session.ID) == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
-	// StopCleanup should not panic even when not started
-	sm.StopCleanup()
+	if sm.GetSession(session.ID) != nil {
+		t.Error("idle session should have been evicted even when enabled is false")
+	}
 }
 
 func TestSessionManager_CleanupExpiredSessions(t *testing.T) {
@@ -487,6 +495,48 @@ func TestSessionManager_CleanupExpiredSessions(t *testing.T) {
 	// New session should still exist
 	if sm.GetSession(session3.ID) == nil {
 		t.Error("session3 should still exist")
+	}
+}
+
+// TestSessionManager_FullPoolRecoversAfterIdleTimeout is the end-to-end
+// regression test for the session-leak bug: it fills the pool to max_sessions,
+// confirms further creation is rejected, then lets the sessions go idle past
+// the timeout and asserts the reaper frees every slot so new sessions can be
+// created again.
+func TestSessionManager_FullPoolRecoversAfterIdleTimeout(t *testing.T) {
+	const maxSessions = 5
+
+	sm := NewSessionManager(config.SessionConfig{
+		Enabled:     true,
+		MaxSessions: maxSessions,
+		Timeout:     30 * time.Millisecond,
+	})
+
+	// Fill the pool to capacity.
+	for i := 0; i < maxSessions; i++ {
+		if _, err := sm.CreateSession(); err != nil {
+			t.Fatalf("CreateSession() %d error = %v", i, err)
+		}
+	}
+
+	// The pool is full: creating another session must be rejected.
+	if _, err := sm.CreateSession(); err == nil {
+		t.Fatal("CreateSession() should fail when the pool is full")
+	} else if err.Error() != "maximum sessions reached" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Let every session go idle past the timeout with no activity, then reap.
+	time.Sleep(40 * time.Millisecond)
+	sm.cleanupExpiredSessions()
+
+	if count := sm.SessionCount(); count != 0 {
+		t.Errorf("SessionCount() after reaping idle sessions = %d, want 0", count)
+	}
+
+	// The freed slots must be usable: a previously-full pool can accept clients.
+	if _, err := sm.CreateSession(); err != nil {
+		t.Errorf("CreateSession() should succeed after idle sessions were evicted: %v", err)
 	}
 }
 

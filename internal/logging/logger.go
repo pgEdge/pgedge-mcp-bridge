@@ -228,6 +228,12 @@ func (l *Logger) Error(msg string, keyvals ...any) {
 // log is the internal logging method that handles level filtering, formatting,
 // and writing to the output.
 func (l *Logger) log(level Level, msg string, keyvals ...any) {
+	// A nil logger is a no-op, so callers can hold an optional *Logger
+	// without guarding every call site.
+	if l == nil {
+		return
+	}
+
 	// Level filtering
 	if level < l.level {
 		return
