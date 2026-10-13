@@ -386,35 +386,42 @@ func validateAuthorizeRequest(req *AuthorizeRequest, allowedRedirectURIs []strin
 }
 
 // isAllowedRedirectURI checks if the URI is in the allowed list.
-// For localhost redirect URIs, only the scheme and host are compared,
-// allowing any port. This supports development tools like Claude Desktop
-// that use dynamic ports on localhost.
+// For loopback redirect URIs, any port is allowed (RFC 8252 section 7.3)
+// but the path and query must match exactly. This supports development tools like
+// Claude Desktop that use dynamic ports on localhost.
 func isAllowedRedirectURI(uri string, allowedRedirectURIs []string) bool {
+	uriParsed := parseLoopbackURI(uri)
 	for _, allowed := range allowedRedirectURIs {
 		if allowed == uri {
 			return true
 		}
-		// Support localhost with any port for development, but require
-		// an exact path match to prevent open redirect attacks.
-		if isLocalhostURI(allowed) && isLocalhostURI(uri) {
-			allowedParsed, err1 := url.Parse(allowed)
-			uriParsed, err2 := url.Parse(uri)
-			if err1 == nil && err2 == nil &&
-				allowedParsed.Scheme == uriParsed.Scheme &&
-				allowedParsed.Path == uriParsed.Path {
-				return true
-			}
+		if uriParsed == nil {
+			continue
+		}
+		if allowedParsed := parseLoopbackURI(allowed); allowedParsed != nil &&
+			allowedParsed.EscapedPath() == uriParsed.EscapedPath() &&
+			allowedParsed.RawQuery == uriParsed.RawQuery {
+			return true
 		}
 	}
 	return false
 }
 
-// isLocalhostURI checks if a URI targets localhost.
-func isLocalhostURI(uri string) bool {
-	return strings.HasPrefix(uri, "http://localhost:") ||
-		strings.HasPrefix(uri, "http://localhost/") ||
-		uri == "http://localhost" ||
-		strings.HasPrefix(uri, "http://127.0.0.1:")
+// parseLoopbackURI parses uri and returns it only if it is a plain http
+// URI whose host is a loopback address, or nil otherwise. The host is
+// taken from the parsed URI rather than a string prefix, so that userinfo
+// such as "http://localhost:@evil.example/" cannot pose as localhost.
+func parseLoopbackURI(uri string) *url.URL {
+	u, err := url.Parse(uri)
+	if err != nil || u.Scheme != "http" || u.Opaque != "" ||
+		u.User != nil || u.Fragment != "" || strings.Contains(uri, "#") {
+		return nil
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return u
+	}
+	return nil
 }
 
 // showLoginForm renders the login form.

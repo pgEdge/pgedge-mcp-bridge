@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Security**: Redirect URI validation now identifies loopback URIs by their parsed host rather than a string prefix, so a URI such as `http://localhost:@attacker.example/callback` (where `localhost:` is userinfo) can no longer pass as localhost and receive the authorization code. Port-agnostic loopback matching now also requires the query and the encoded path to match exactly, and no longer applies to URIs with userinfo or a fragment; `[::1]` is now recognised as a loopback host ([#5](https://github.com/pgEdge/pgedge-mcp-bridge/issues/5))
+- **Examples**: The OAuth example configuration listed `http://localhost:*/callback`, which failed configuration validation at startup because `*` is not a valid port; it now uses a concrete port, which matches any port on the loopback interface
+
 ## [1.0.0-beta1] - 2026-06-26
 
 ### Added

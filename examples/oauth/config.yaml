@@ -123,7 +123,9 @@ server:
     # Allowed redirect URIs - must include Claude's callback
     allowed_redirect_uris:
       - "https://claude.ai/api/mcp/auth_callback"
-      - "http://localhost:*/callback"  # For local development
+      # For local development; any port on localhost, 127.0.0.1 or [::1]
+      # matches, provided the path and query are the same
+      - "http://localhost:8080/callback"
 
     # Scopes the server supports
     scopes_supported:
