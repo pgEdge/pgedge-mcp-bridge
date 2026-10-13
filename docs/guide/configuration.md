@@ -472,7 +472,17 @@ Authorization code validity duration. Default: `10m`
 
 ### oauth_server.allowed_redirect_uris
 
-List of allowed OAuth redirect URI patterns.
+List of allowed OAuth redirect URIs. The bridge rejects an authorization
+request unless the `redirect_uri` exactly matches one of the listed URIs.
+When the list is empty, the bridge allows
+`https://claude.ai/api/mcp/auth_callback` and
+`https://claude.com/api/mcp/auth_callback`.
+
+A loopback entry such as `http://localhost:8080/callback` also matches the
+same path and query on any port of `localhost`, `127.0.0.1`, or `[::1]`; this
+supports clients that listen on a dynamic port, as RFC 8252 describes. The
+bridge applies this port-agnostic matching only to `http` URIs without
+userinfo or a fragment.
 
 ### oauth_server.scopes_supported
 

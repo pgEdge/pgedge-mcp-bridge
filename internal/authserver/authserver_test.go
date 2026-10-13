@@ -3500,7 +3500,21 @@ func TestIsAllowedRedirectURI(t *testing.T) {
 		{"non-matching URI", "https://evil.com/callback", false},
 		{"localhost different path", "http://localhost:9090/other", false},
 		{"127.0.0.1 matches localhost", "http://127.0.0.1:8080/callback", true},
+		{"IPv6 loopback matches localhost", "http://[::1]:8080/callback", true},
+		{"localhost without port", "http://localhost/callback", true},
 		{"empty URI", "", false},
+		// Userinfo must not be mistaken for a loopback host.
+		{"userinfo hides remote host", "http://localhost:@192.0.2.1:5555/callback", false},
+		{"userinfo with port hides remote host", "http://localhost:8080@evil.example/callback", false},
+		{"127.0.0.1 userinfo hides remote host", "http://127.0.0.1:x@evil.example/callback", false},
+		{"userinfo on loopback host", "http://user@localhost:8080/callback", false},
+		{"non-loopback 127 address", "http://127.0.0.2:5555/callback", false},
+		{"localhost subdomain", "http://localhost.evil.example:8080/callback", false},
+		{"https scheme for http entry", "https://localhost:8080/callback", false},
+		{"fragment", "http://localhost:8080/callback#frag", false},
+		{"invalid port", "http://localhost:abc/callback", false},
+		{"added query", "http://localhost:9090/callback?x=1", false},
+		{"percent-encoded path", "http://localhost:9090/call%62ack", false},
 	}
 
 	for _, tt := range tests {
