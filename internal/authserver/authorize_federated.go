@@ -31,6 +31,10 @@ type FederatedAuthorizeHandler struct {
 	scopesSupported     []string
 	issuer              string
 
+	// requireRegisteredClients rejects client_ids that were not
+	// registered through dynamic client registration.
+	requireRegisteredClients bool
+
 	// Pending authorization state (stores original OAuth request while user authenticates with IdP)
 	pendingMu sync.RWMutex
 	pending   map[string]*pendingAuthRequest
@@ -105,10 +109,17 @@ func (h *FederatedAuthorizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	req, oauthErr := h.parseAndValidateRequest(r)
 	if oauthErr != nil {
 		redirectURI := r.URL.Query().Get("redirect_uri")
-		if redirectURI != "" && h.isAllowedRedirectURI(redirectURI) {
+		if redirectURI != "" && h.isAllowedRedirectURI(redirectURI) &&
+			h.checkClient(r.Context(), req.ClientID, redirectURI) == nil {
 			RedirectWithError(w, r, redirectURI, oauthErr)
 			return
 		}
+		WriteJSONError(w, oauthErr)
+		return
+	}
+
+	// Errors about the client itself must never be redirected
+	if oauthErr := h.checkClient(r.Context(), req.ClientID, req.RedirectURI); oauthErr != nil {
 		WriteJSONError(w, oauthErr)
 		return
 	}
@@ -310,6 +321,12 @@ func (h *FederatedAuthorizeHandler) validateRequest(req *AuthorizeRequest) *OAut
 // isAllowedRedirectURI checks if the URI is in the allowed list.
 func (h *FederatedAuthorizeHandler) isAllowedRedirectURI(uri string) bool {
 	return isAllowedRedirectURI(uri, h.allowedRedirectURIs)
+}
+
+// checkClient checks the client_id and redirect_uri against the client's
+// registration.
+func (h *FederatedAuthorizeHandler) checkClient(ctx context.Context, clientID, redirectURI string) *OAuthError {
+	return checkRegisteredClient(ctx, h.storage, h.requireRegisteredClients, clientID, redirectURI)
 }
 
 // generateSecureToken generates a cryptographically secure random token.

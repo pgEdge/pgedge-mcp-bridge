@@ -28,6 +28,10 @@ type TokenHandler struct {
 	tokenLifetime        time.Duration
 	refreshTokenLifetime time.Duration
 	logger               *logging.Logger
+
+	// requireRegisteredClients rejects client_ids that were not
+	// registered through dynamic client registration.
+	requireRegisteredClients bool
 }
 
 // NewTokenHandler creates a new token handler.
@@ -85,13 +89,18 @@ func (h *TokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // validateClientAuth validates client authentication at the token endpoint.
 // For public clients (token_endpoint_auth_method: "none"), no secret is required.
 // For confidential clients, the secret must match.
-// If the client is not registered (dynamic registration not used), validation is skipped.
+// An unregistered client is rejected when requireRegisteredClients is set;
+// otherwise validation is skipped, since without dynamic registration no
+// client can register.
 func (h *TokenHandler) validateClientAuth(ctx context.Context, clientID, clientSecret string) *OAuthError {
 	client, err := h.storage.GetClient(ctx, clientID)
 	if err != nil {
 		return ErrServerError("failed to retrieve client")
 	}
 	if client == nil {
+		if h.requireRegisteredClients {
+			return ErrInvalidClient("unknown client_id")
+		}
 		// Client not registered via dynamic registration; skip validation.
 		// This supports clients that authenticate only via PKCE.
 		return nil

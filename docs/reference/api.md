@@ -332,12 +332,16 @@ Displays the authorization page (login form or IdP redirect).
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `response_type` | Yes | Must be `code` |
-| `client_id` | Yes | Client identifier |
-| `redirect_uri` | Yes | Callback URL |
+| `client_id` | Yes | Client identifier; must be registered when `allow_dynamic_registration` is `true` |
+| `redirect_uri` | Yes | Callback URL; must be in `allowed_redirect_uris` and, for a registered client, one of its registered URIs |
 | `state` | Recommended | CSRF protection value |
 | `code_challenge` | Yes | PKCE code challenge (S256) |
 | `code_challenge_method` | Yes | Must be `S256` |
 | `scope` | No | Space-separated scopes |
+
+An unknown `client_id`, or a `redirect_uri` that the client did not register,
+returns a `400` JSON error with the code `invalid_request` rather than a
+redirect. The same check applies to the login form submission.
 
 **Example:**
 
@@ -384,6 +388,9 @@ Exchange authorization code for tokens or refresh tokens.
 | `grant_type` | Yes | `refresh_token` |
 | `refresh_token` | Yes | Refresh token |
 | `client_id` | Yes | Client identifier |
+
+When `allow_dynamic_registration` is `true`, both grants return `401` with the
+error `invalid_client` for a `client_id` that has not been registered.
 
 **Response (200 OK):**
 
@@ -437,6 +444,8 @@ Callback endpoint for federated mode. Handles the redirect from the upstream IdP
 ### POST /register and POST /oauth/register
 
 Dynamic client registration (RFC 7591). Available at both `/register` and `/oauth/register`. Only available when `allow_dynamic_registration: true`.
+
+Every entry in `redirect_uris` must be allowed by `allowed_redirect_uris`; otherwise the request fails with `400` and the error `invalid_redirect_uri`.
 
 **Content-Type:** `application/json`
 

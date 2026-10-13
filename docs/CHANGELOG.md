@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Security**: Redirect URI validation now identifies loopback URIs by their parsed host rather than a string prefix, so a URI such as `http://localhost:@attacker.example/callback` (where `localhost:` is userinfo) can no longer pass as localhost and receive the authorization code. Port-agnostic loopback matching now also requires the query and the encoded path to match exactly, and no longer applies to URIs with userinfo or a fragment; `[::1]` is now recognised as a loopback host ([#5](https://github.com/pgEdge/pgedge-mcp-bridge/issues/5))
 - **Examples**: The OAuth example configuration listed `http://localhost:*/callback`, which failed configuration validation at startup because `*` is not a valid port; it now uses a concrete port, which matches any port on the loopback interface
+- **Security**: Authorization requests are now bound to registered clients. Dynamic client registration rejects `redirect_uris` that `allowed_redirect_uris` does not allow (`invalid_redirect_uri`), a registered client may only use the redirect URIs it registered, and when `allow_dynamic_registration` is enabled the authorization and token endpoints reject unregistered `client_id`s. Registrations are held in memory, so clients must register again after a restart ([#7](https://github.com/pgEdge/pgedge-mcp-bridge/issues/7))
 
 ## [1.0.0-beta1] - 2026-06-26
 

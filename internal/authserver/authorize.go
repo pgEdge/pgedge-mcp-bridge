@@ -74,6 +74,10 @@ type AuthorizeHandler struct {
 	loginTemplate       *template.Template
 	branding            loginBranding
 
+	// requireRegisteredClients rejects client_ids that were not
+	// registered through dynamic client registration.
+	requireRegisteredClients bool
+
 	csrfTokens map[string]time.Time
 	csrfMu     sync.Mutex
 }
@@ -206,11 +210,17 @@ func (h *AuthorizeHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	if oauthErr != nil {
 		// If we have a valid redirect_uri, redirect with error
 		redirectURI := r.URL.Query().Get("redirect_uri")
-		if redirectURI != "" && h.isAllowedRedirectURI(redirectURI) {
+		if h.canRedirectError(r.Context(), req.ClientID, redirectURI) {
 			RedirectWithError(w, r, redirectURI, oauthErr)
 			return
 		}
 		// Otherwise show error directly
+		WriteJSONError(w, oauthErr)
+		return
+	}
+
+	// Errors about the client itself must never be redirected
+	if oauthErr := h.checkClient(r.Context(), req.ClientID, req.RedirectURI); oauthErr != nil {
 		WriteJSONError(w, oauthErr)
 		return
 	}
@@ -247,10 +257,14 @@ func (h *AuthorizeHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the request again
 	if oauthErr := h.validateRequest(req); oauthErr != nil {
-		if req.RedirectURI != "" && h.isAllowedRedirectURI(req.RedirectURI) {
+		if h.canRedirectError(r.Context(), req.ClientID, req.RedirectURI) {
 			RedirectWithError(w, r, req.RedirectURI, oauthErr.WithState(req.State))
 			return
 		}
+		WriteJSONError(w, oauthErr)
+		return
+	}
+	if oauthErr := h.checkClient(r.Context(), req.ClientID, req.RedirectURI); oauthErr != nil {
 		WriteJSONError(w, oauthErr)
 		return
 	}
@@ -345,6 +359,42 @@ func (h *AuthorizeHandler) validateRequest(req *AuthorizeRequest) *OAuthError {
 // isAllowedRedirectURI checks if the URI is in the allowed list.
 func (h *AuthorizeHandler) isAllowedRedirectURI(uri string) bool {
 	return isAllowedRedirectURI(uri, h.allowedRedirectURIs)
+}
+
+// checkClient checks the client_id and redirect_uri against the client's
+// registration.
+func (h *AuthorizeHandler) checkClient(ctx context.Context, clientID, redirectURI string) *OAuthError {
+	return checkRegisteredClient(ctx, h.storage, h.requireRegisteredClients, clientID, redirectURI)
+}
+
+// canRedirectError reports whether an error for this request may be sent
+// to redirectURI rather than shown to the user.
+func (h *AuthorizeHandler) canRedirectError(ctx context.Context, clientID, redirectURI string) bool {
+	return redirectURI != "" && h.isAllowedRedirectURI(redirectURI) &&
+		h.checkClient(ctx, clientID, redirectURI) == nil
+}
+
+// checkRegisteredClient binds an authorization request to its client.
+// A registered client may only use the redirect URIs it registered, with
+// the same any-port allowance for loopback URIs as the global allow-list.
+// An unregistered client_id is rejected when requireRegistered is set.
+// Per RFC 6749 section 4.1.2.1, callers must show these errors to the
+// user rather than redirect them.
+func checkRegisteredClient(ctx context.Context, storage Storage, requireRegistered bool, clientID, redirectURI string) *OAuthError {
+	client, err := storage.GetClient(ctx, clientID)
+	if err != nil {
+		return ErrServerError("failed to retrieve client")
+	}
+	if client == nil {
+		if requireRegistered {
+			return ErrInvalidRequest("unknown client_id")
+		}
+		return nil
+	}
+	if !isAllowedRedirectURI(redirectURI, client.RedirectURIs) {
+		return ErrInvalidRequest("redirect_uri is not registered for this client")
+	}
+	return nil
 }
 
 // validateAuthorizeRequest validates an OAuth authorization request against

@@ -53,6 +53,10 @@ const (
 
 	// ErrorUnsupportedGrantType - The authorization grant type is not supported.
 	ErrorUnsupportedGrantType = "unsupported_grant_type"
+
+	// ErrorInvalidRedirectURI - The value of one or more redirection URIs
+	// in a client registration request is invalid (RFC 7591).
+	ErrorInvalidRedirectURI = "invalid_redirect_uri"
 )
 
 // OAuthError represents an OAuth 2.0 error response.
@@ -146,6 +150,11 @@ func ErrInvalidGrant(description string) *OAuthError {
 // ErrUnsupportedGrantType creates an unsupported_grant_type error.
 func ErrUnsupportedGrantType(description string) *OAuthError {
 	return NewOAuthError(ErrorUnsupportedGrantType, description, http.StatusBadRequest)
+}
+
+// ErrInvalidRedirectURI creates an invalid_redirect_uri error.
+func ErrInvalidRedirectURI(description string) *OAuthError {
+	return NewOAuthError(ErrorInvalidRedirectURI, description, http.StatusBadRequest)
 }
 
 // WriteJSONError writes an OAuth error as a JSON response.
