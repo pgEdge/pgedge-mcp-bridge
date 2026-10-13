@@ -78,6 +78,9 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 		cfg.RefreshTokenLifetime,
 		logger,
 	)
+	// Clients can only register when dynamic registration is enabled, so
+	// only then is an unregistered client_id an error.
+	tokenHandler.requireRegisteredClients = cfg.AllowDynamicRegistration
 
 	// Create rate limiter (20 requests per minute per IP)
 	rateLimiter := NewRateLimiter(20, time.Minute)
@@ -122,6 +125,7 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 		if err != nil {
 			return nil, fmt.Errorf("creating authorize handler: %w", err)
 		}
+		server.builtinAuthorizeHandler.requireRegisteredClients = cfg.AllowDynamicRegistration
 
 	case "federated":
 		if cfg.Federated == nil {
@@ -140,6 +144,7 @@ func New(cfg *config.OAuthServerConfig, logger *logging.Logger) (*Server, error)
 			cfg.ScopesSupported,
 			cfg.Issuer,
 		)
+		server.federatedAuthorizeHandler.requireRegisteredClients = cfg.AllowDynamicRegistration
 
 	default:
 		return nil, fmt.Errorf("unknown mode: %s (must be 'builtin' or 'federated')", cfg.Mode)
@@ -251,6 +256,12 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if len(req.RedirectURIs) == 0 {
 		WriteJSONError(w, ErrInvalidRequest("redirect_uris is required"))
 		return
+	}
+	for _, uri := range req.RedirectURIs {
+		if !isAllowedRedirectURI(uri, s.cfg.AllowedRedirectURIs) {
+			WriteJSONError(w, ErrInvalidRedirectURI("redirect_uri is not allowed: "+uri))
+			return
+		}
 	}
 
 	// Generate client credentials

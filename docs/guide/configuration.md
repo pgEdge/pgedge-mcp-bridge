@@ -492,6 +492,16 @@ List of scopes this server supports.
 
 Enable dynamic client registration endpoint (`/oauth/register`). Default: `false`
 
+The registration endpoint rejects any `redirect_uris` entry that
+`allowed_redirect_uris` does not allow. A registered client may only use the
+redirect URIs it registered; loopback URIs still match on any port.
+
+When this option is `true`, the authorization and token endpoints reject any
+`client_id` that has not been registered. The bridge keeps registrations in
+memory, so clients must register again after the bridge restarts. When this
+option is `false`, the bridge accepts any `client_id` and checks the
+`redirect_uri` only against `allowed_redirect_uris`.
+
 ### Built-in Mode Configuration
 
 For local user management:
