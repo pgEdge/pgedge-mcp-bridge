@@ -38,7 +38,7 @@ cd pgedge-mcp-bridge
 make build          # outputs bin/mcp-bridge
 ```
 
-Requires Go 1.24+.
+Requires Go 1.26.10+.
 
 ### Server Mode
 
@@ -94,7 +94,7 @@ bin/mcp-bridge -c config.yaml
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.26.10+
 - [golangci-lint](https://golangci-lint.run/) (install via `make install-tools`)
 
 ### Build & Test
