@@ -4,7 +4,7 @@ This guide covers how to install the pgEdge MCP Bridge on your system.
 
 ## Requirements
 
-- Go 1.24 or later (for building from source)
+- Go 1.26.10 or later (for building from source)
 - A supported operating system: Linux, macOS, or Windows
 
 ## Download Pre-built Binaries

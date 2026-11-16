@@ -1,8 +1,6 @@
 module github.com/pgEdge/pgedge-mcp-bridge
 
-go 1.24.0
-
-toolchain go1.24.7
+go 1.26.10
 
 require (
 	github.com/coreos/go-oidc/v3 v3.17.0
